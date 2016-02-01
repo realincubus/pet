@@ -820,7 +820,7 @@ static CompilerInvocation *construct_invocation(const char *filename,
 	if (Jobs.size() < 1)
 		return NULL;
 
-	Command *cmd = cast<Command>(ClangAPI::command(*Jobs.begin()));
+	auto cmd = Jobs.begin();
 	if (strcmp(cmd->getCreator().getName(), "clang"))
 		return NULL;
 
@@ -1018,8 +1018,8 @@ static int foreach_scop_in_C_source(isl_ctx *ctx,
 	create_preprocessor(Clang);
 	Preprocessor &PP = Clang->getPreprocessor();
 	add_predefines(PP, options->pencil);
-	PP.getBuiltinInfo().InitializeBuiltins(PP.getIdentifierTable(),
-		PP.getLangOpts());
+	//PP.getBuiltinInfo().InitializeBuiltins(PP.getIdentifierTable(),
+	//	PP.getLangOpts());
 
 	ScopLocList scops;
 
