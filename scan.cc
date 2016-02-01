@@ -44,6 +44,7 @@
 #include <clang/AST/Attr.h>
 #include <clang/AST/Expr.h>
 #include <clang/AST/RecursiveASTVisitor.h>
+#include <clang/AST/StmtIterator.h>
 
 #include <isl/id.h>
 #include <isl/space.h>
