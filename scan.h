@@ -4,6 +4,7 @@
 #include <clang/AST/Decl.h>
 #include <clang/AST/Stmt.h>
 #include <clang/Lex/Preprocessor.h>
+#include <clang/AST/StmtIterator.h>
 
 #include <isl/ctx.h>
 #include <isl/map.h>
@@ -14,6 +15,10 @@
 #include "scop.h"
 #include "summary.h"
 #include "tree.h"
+
+namespace clang{
+	typedef clang::Stmt::child_range StmtRange;
+}
 
 /* The location of the scop, as delimited by scop and endscop
  * pragmas by the user.

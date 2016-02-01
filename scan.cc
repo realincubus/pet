@@ -44,6 +44,7 @@
 #include <clang/AST/Attr.h>
 #include <clang/AST/Expr.h>
 #include <clang/AST/RecursiveASTVisitor.h>
+#include <clang/AST/StmtIterator.h>
 
 #include <isl/id.h>
 #include <isl/space.h>
@@ -1726,7 +1727,7 @@ __isl_give pet_tree *PetScan::insert_initial_declarations(
 	is_block = pet_tree_block_get_block(tree);
 	res = pet_tree_new_block(ctx, is_block, n_decl + n_stmt);
 
-	for (i = stmt_range.first; n_decl; ++i, --n_decl) {
+	for (i = stmt_range.begin(); n_decl; ++i, --n_decl) {
 		Stmt *child = *i;
 		pet_tree *tree_i;
 
@@ -1788,21 +1789,21 @@ __isl_give pet_tree *PetScan::extract(StmtRange stmt_range, bool block,
 	bool partial_range = false;
 	pet_tree *tree;
 
-	for (i = stmt_range.first, j = 0; i != stmt_range.second; ++i, ++j)
+	for (i = stmt_range.begin(), j = 0; i != stmt_range.end(); ++i, ++j)
 		;
 
 	tree = pet_tree_new_block(ctx, block, j);
 
 	skip = 0;
-	i = stmt_range.first;
+	i = stmt_range.begin();
 	if (skip_declarations)
-		for (; i != stmt_range.second; ++i) {
+		for (; i != stmt_range.end(); ++i) {
 			if ((*i)->getStmtClass() != Stmt::DeclStmtClass)
 				break;
 			++skip;
 		}
 
-	for (; i != stmt_range.second; ++i) {
+	for (; i != stmt_range.end(); ++i) {
 		Stmt *child = *i;
 		pet_tree *tree_i;
 
