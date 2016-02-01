@@ -205,8 +205,6 @@ build)
 	ISL_LIBS="$with_isl_builddir/libisl.la"
 	;;
 system)
-	PKG_CHECK_MODULES([ISL], [isl])
-	PACKAGE_CFLAGS_ISL="$ISL_CFLAGS"
 esac
 
 AX_SUBMODULE(libyaml,system|no,system)
