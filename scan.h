@@ -4,6 +4,7 @@
 #include <clang/AST/Decl.h>
 #include <clang/AST/Stmt.h>
 #include <clang/Lex/Preprocessor.h>
+#include <clang/AST/StmtIterator.h>
 
 #include <isl/ctx.h>
 #include <isl/map.h>
