@@ -22,7 +22,7 @@ TESTS = @extra_tests@
 EXTRA_TESTS = pet_test.sh codegen_test.sh
 TEST_EXTENSIONS = .sh
 
-include_HEADERS = include/pet.h
+include_HEADERS = include/pet.h include/pet_cxx.h
 
 EXTRA_DIST = \
 	tests

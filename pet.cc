@@ -89,6 +89,7 @@
 #include <isl/constraint.h>
 
 #include <pet.h>
+#include <fstream>
 
 #include "options.h"
 #include "scan.h"
@@ -99,6 +100,8 @@
 using namespace std;
 using namespace clang;
 using namespace clang::driver;
+
+ofstream out("/home/incubus/log/pet.log");
 
 #ifdef HAVE_ADT_OWNINGPTR_H
 #define unique_ptr	llvm::OwningPtr
@@ -615,6 +618,7 @@ struct PetASTConsumer : public ASTConsumer {
 	 * is turned on, then skip it.
 	 */
 	void call_fn(pet_scop *scop) {
+		out << "in call_fn" << endl;
 		if (!scop)
 			return;
 		if (diags.hasErrorOccurred()) {
@@ -625,18 +629,23 @@ struct PetASTConsumer : public ASTConsumer {
 			pet_scop_free(scop);
 			return;
 		}
+		out << "in " << __LINE__ << endl;
 		scop->context = isl_set_intersect(scop->context,
 						isl_set_copy(context));
 		scop->context_value = isl_set_intersect(scop->context_value,
 						isl_set_copy(context_value));
 
+		out << "in " << __LINE__ << endl;
 		update_arrays(scop, get_value_bounds(), live_out);
+		out << "in " << __LINE__ << endl;
 
 		scop = pet_scop_add_ref_ids(scop);
 		scop = pet_scop_anonymize(scop);
+		out << "in " << __LINE__ << endl;
 
 		if (fn(scop, user) < 0)
 			error = true;
+		out << "leaving call_fn" << endl;
 	}
 
 	/* For each explicitly marked scop (using pragmas),
@@ -673,12 +682,17 @@ struct PetASTConsumer : public ASTConsumer {
 	virtual HandleTopLevelDeclReturn HandleTopLevelDecl(DeclGroupRef dg) {
 		DeclGroupRef::iterator it;
 
+		out << "in HandleTopLevelDecl " << endl;
+
 		if (error)
 			return HandleTopLevelDeclContinue;
 
 		for (it = dg.begin(); it != dg.end(); ++it) {
+		        out << "in for loop" << endl;
 			isl_union_map *vb = vb_handler->value_bounds;
+		        out << "after vb" << endl;
 			FunctionDecl *fd = dyn_cast<clang::FunctionDecl>(*it);
+		        out << "after fd cast" << endl;
 			if (!fd)
 				continue;
 			if (!fd->hasBody())
@@ -689,16 +703,21 @@ struct PetASTConsumer : public ASTConsumer {
 			if (options->autodetect) {
 				ScopLoc loc;
 				pet_scop *scop;
+				out << "starting autodetect" << endl;
 				PetScan ps(PP, ast_context, loc, options,
 					    isl_union_map_copy(vb),
 					    independent);
+				out << "after creation" << endl;
 				scop = ps.scan(fd);
+				out << "after scan" << endl;
 				call_fn(scop);
 				continue;
 			}
+		        out << "before scan scop" << endl;
 			scan_scops(fd);
 		}
 
+		out << "returning from HandleTopLevelDecl" << endl;
 		return HandleTopLevelDeclContinue;
 	}
 };
@@ -1222,3 +1241,67 @@ int pet_transform_C_source(isl_ctx *ctx, const char *input, FILE *out,
 
 	return r;
 }
+
+pet_scop* pet_scop_extract_from_clang_ast( isl_ctx* ctx,
+				      clang::Preprocessor& PP,
+				      clang::ASTContext& clang_ctx,
+				      clang::DiagnosticsEngine& Diags,
+				      pet_options* options,
+				      clang::DeclGroupRef dg
+				    ){
+  using namespace std;
+  std::cout << "in pet_scop_extract_from_clang_ast" << std::endl;
+  // TODO with pragmas this holds a list of scops
+  ScopLocList scops;
+  const char* function = nullptr;
+  pet_scop* scop = nullptr;
+
+  static PetASTConsumer* consumer = nullptr;
+  
+  out << "before create consumer" << endl;
+  if ( consumer == nullptr ) {
+
+    consumer = new PetASTConsumer(ctx, PP, clang_ctx, Diags,
+			  scops, function, options, &set_first_scop, &scop);
+
+    out << "before create sema" << endl;
+    Sema *sema = new Sema(PP, clang_ctx, *consumer);
+    out << "after create sema" << endl;
+
+    if (!options->autodetect) {
+	    PP.AddPragmaHandler(new PragmaScopHandler(scops));
+	    PP.AddPragmaHandler(new PragmaEndScopHandler(scops));
+	    PP.AddPragmaHandler(new PragmaLiveOutHandler(*sema,
+						    consumer->live_out));
+    }
+
+    consumer->add_pragma_handlers(sema);
+    out << "after add_pragma_handlers" << endl;
+
+
+  }
+  out << "after create consumer" << endl;
+
+  auto ret = consumer->HandleTopLevelDecl(dg);
+  out << "after htd" << endl;
+
+  if ( scop ) {
+    out << "found a scop" << endl;
+  }
+
+  return scop;
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
