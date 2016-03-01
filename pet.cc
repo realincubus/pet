@@ -1062,9 +1062,9 @@ static int foreach_scop_in_C_source(isl_ctx *ctx,
 
 	consumer.add_pragma_handlers(sema);
 
-	Diags.getClient()->BeginSourceFile(Clang->getLangOpts(), &PP);
+	//Diags.getClient()->BeginSourceFile(Clang->getLangOpts(), &PP);
 	ParseAST(*sema);
-	Diags.getClient()->EndSourceFile();
+	//Diags.getClient()->EndSourceFile();
 
 	delete sema;
 	delete Clang;

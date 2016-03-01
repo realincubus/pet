@@ -105,6 +105,7 @@ struct pet_stmt *pet_stmt_from_pet_tree(__isl_take isl_set *domain,
 		label = isl_id_copy(tree->label);
 	} else {
 		snprintf(name, sizeof(name), "S_%d", id);
+		printf("PET DBUEG: new statement is created with name %s\n",name);
 		label = isl_id_alloc(ctx, name, NULL);
 	}
 	domain = isl_set_set_tuple_id(domain, label);

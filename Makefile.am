@@ -76,11 +76,11 @@ libpet_la_SOURCES = \
 	value_bounds.c \
 	version.h \
 	version.cc \
-	pet.cc
+	pet_cxx.cc
 libpet_la_LDFLAGS = -version-info @versioninfo@ $(AM_LDFLAGS)
-libpet_la_LIBADD = -lclangFrontend -lclangParse -lclangSema \
+libpet_la_LIBADD = -lclangParse -lclangSema \
 	$(LIB_CLANG_EDIT) -lclangAnalysis \
-	-lclangAST -lclangLex -lclangBasic -lclangDriver -lclangSerialization \
+	-lclangAST -lclangLex -lclangBasic -lclangSerialization \
 	$(CLANG_LIBS) $(CLANG_LDFLAGS) $(LIB_ISL)
 
 pet_CFLAGS = $(AM_CFLAGS) @LIBYAML_CPPFLAGS@

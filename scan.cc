@@ -225,11 +225,11 @@ PetScan::~PetScan()
  */
 void PetScan::report(Stmt *stmt, unsigned id)
 {
-	if (options->autodetect)
-		return;
+	//if (options->autodetect)
+	//	return;
 
 	SourceLocation loc = stmt->getLocStart();
-	DiagnosticsEngine &diag = PP.getDiagnostics();
+	DiagnosticsEngine &diag = ast_context.getDiagnostics();
 	DiagnosticBuilder B = diag.Report(loc, id) << stmt->getSourceRange();
 }
 
@@ -240,7 +240,7 @@ void PetScan::report(Stmt *stmt, unsigned id)
  */
 void PetScan::unsupported(Stmt *stmt)
 {
-	DiagnosticsEngine &diag = PP.getDiagnostics();
+	DiagnosticsEngine &diag = ast_context.getDiagnostics();
 	unsigned id = diag.getCustomDiagID(DiagnosticsEngine::Warning,
 					   "unsupported");
 	report(stmt, id);
@@ -250,7 +250,7 @@ void PetScan::unsupported(Stmt *stmt)
  */
 void PetScan::report_unsupported_statement_type(Stmt *stmt)
 {
-	DiagnosticsEngine &diag = PP.getDiagnostics();
+	DiagnosticsEngine &diag = ast_context.getDiagnostics();
 	unsigned id = diag.getCustomDiagID(DiagnosticsEngine::Warning,
 				   "this type of statement is not supported");
 	report(stmt, id);
@@ -260,7 +260,7 @@ void PetScan::report_unsupported_statement_type(Stmt *stmt)
  */
 void PetScan::report_prototype_required(Stmt *stmt)
 {
-	DiagnosticsEngine &diag = PP.getDiagnostics();
+	DiagnosticsEngine &diag = ast_context.getDiagnostics();
 	unsigned id = diag.getCustomDiagID(DiagnosticsEngine::Warning,
 					   "prototype required");
 	report(stmt, id);
@@ -270,7 +270,7 @@ void PetScan::report_prototype_required(Stmt *stmt)
  */
 void PetScan::report_missing_increment(Stmt *stmt)
 {
-	DiagnosticsEngine &diag = PP.getDiagnostics();
+	DiagnosticsEngine &diag = ast_context.getDiagnostics();
 	unsigned id = diag.getCustomDiagID(DiagnosticsEngine::Warning,
 					   "missing increment");
 	report(stmt, id);
@@ -280,7 +280,7 @@ void PetScan::report_missing_increment(Stmt *stmt)
  */
 void PetScan::report_missing_summary_function(Stmt *stmt)
 {
-	DiagnosticsEngine &diag = PP.getDiagnostics();
+	DiagnosticsEngine &diag = ast_context.getDiagnostics();
 	unsigned id = diag.getCustomDiagID(DiagnosticsEngine::Warning,
 					   "missing summary function");
 	report(stmt, id);
@@ -290,7 +290,7 @@ void PetScan::report_missing_summary_function(Stmt *stmt)
  */
 void PetScan::report_missing_summary_function_body(Stmt *stmt)
 {
-	DiagnosticsEngine &diag = PP.getDiagnostics();
+	DiagnosticsEngine &diag = ast_context.getDiagnostics();
 	unsigned id = diag.getCustomDiagID(DiagnosticsEngine::Warning,
 					   "missing summary function body");
 	report(stmt, id);
@@ -803,11 +803,11 @@ __isl_give pet_expr *PetScan::extract_expr(FloatingLiteral *expr)
 {
 	double d;
 	string s;
-	const LangOptions &LO = PP.getLangOpts();
+	const LangOptions &LO = ast_context.getLangOpts();
 	SourceLocation loc = expr->getLocation();
 
 	if (!loc.isMacroID()) {
-		SourceManager &SM = PP.getSourceManager();
+		SourceManager &SM = ast_context.getSourceManager();
 		unsigned len = Lexer::MeasureTokenLength(loc, SM, LO);
 		s = string(SM.getCharacterData(loc), len);
 	} else {
@@ -1544,9 +1544,9 @@ __isl_give pet_loc *PetScan::construct_pet_loc(SourceRange range,
 	bool skip_semi)
 {
 	SourceLocation loc = range.getBegin();
-	SourceManager &SM = PP.getSourceManager();
-	const LangOptions &LO = PP.getLangOpts();
-	int line = PP.getSourceManager().getExpansionLineNumber(loc);
+	SourceManager &SM = ast_context.getSourceManager();
+	const LangOptions &LO = ast_context.getLangOpts();
+	int line = ast_context.getSourceManager().getExpansionLineNumber(loc);
 	unsigned start, end;
 	char *indent;
 
@@ -1556,7 +1556,7 @@ __isl_give pet_loc *PetScan::construct_pet_loc(SourceRange range,
 	if (skip_semi)
 		loc = location_after_semi(loc, SM, LO);
 	else
-		loc = PP.getLocForEndOfToken(loc);
+		loc = Lexer::getLocForEndOfToken(loc,0,SM,LO);
 	end = getExpansionOffset(SM, loc);
 
 	return pet_loc_alloc(ctx, start, end, line, indent);
@@ -1986,7 +1986,7 @@ __isl_give pet_function_summary *PetScan::get_summary(FunctionDecl *fd)
 
 	save_autodetect = options->autodetect;
 	options->autodetect = 0;
-	PetScan body_scan(PP, ast_context, loc, options,
+	PetScan body_scan( ast_context, loc, options,
 				isl_union_map_copy(value_bounds), independent);
 
 	tree = body_scan.extract(fd->getBody(), false);
@@ -2116,7 +2116,7 @@ struct pet_scop *PetScan::extract_scop(__isl_take pet_tree *tree)
  */
 struct pet_scop *PetScan::scan(Stmt *stmt)
 {
-	SourceManager &SM = PP.getSourceManager();
+	SourceManager &SM = ast_context.getSourceManager();
 	unsigned start_off, end_off;
 
 	start_off = getExpansionOffset(SM, stmt->getLocStart());
@@ -2529,17 +2529,17 @@ struct pet_array *PetScan::extract_array(isl_ctx *ctx,
 }
 
 static struct pet_scop *add_type(isl_ctx *ctx, struct pet_scop *scop,
-	RecordDecl *decl, Preprocessor &PP, PetTypes &types,
+	RecordDecl *decl, ASTContext &ast_context, PetTypes &types,
 	std::set<TypeDecl *> &types_done);
 static struct pet_scop *add_type(isl_ctx *ctx, struct pet_scop *scop,
-	TypedefNameDecl *decl, Preprocessor &PP, PetTypes &types,
+	TypedefNameDecl *decl, ASTContext &ast_context, PetTypes &types,
 	std::set<TypeDecl *> &types_done);
 
 /* For each of the fields of "decl" that is itself a record type
  * or a typedef, add a corresponding pet_type to "scop".
  */
 static struct pet_scop *add_field_types(isl_ctx *ctx, struct pet_scop *scop,
-	RecordDecl *decl, Preprocessor &PP, PetTypes &types,
+	RecordDecl *decl, ASTContext &ast_context, PetTypes &types,
 	std::set<TypeDecl *> &types_done)
 {
 	RecordDecl::field_iterator it;
@@ -2552,13 +2552,13 @@ static struct pet_scop *add_field_types(isl_ctx *ctx, struct pet_scop *scop,
 
 			typedefdecl = cast<TypedefType>(type)->getDecl();
 			scop = add_type(ctx, scop, typedefdecl,
-				PP, types, types_done);
+				ast_context, types, types_done);
 		} else if (type->isRecordType()) {
 			RecordDecl *record;
 
 			record = pet_clang_record_decl(type);
 			scop = add_type(ctx, scop, record,
-				PP, types, types_done);
+				ast_context, types, types_done);
 		}
 	}
 
@@ -2576,7 +2576,7 @@ static struct pet_scop *add_field_types(isl_ctx *ctx, struct pet_scop *scop,
  * through add_field_types on the types of all record subfields.
  */
 static struct pet_scop *add_type(isl_ctx *ctx, struct pet_scop *scop,
-	RecordDecl *decl, Preprocessor &PP, PetTypes &types,
+	RecordDecl *decl, ASTContext &ast_context, PetTypes &types,
 	std::set<TypeDecl *> &types_done)
 {
 	string s;
@@ -2587,12 +2587,12 @@ static struct pet_scop *add_type(isl_ctx *ctx, struct pet_scop *scop,
 	if (types_done.find(decl) != types_done.end())
 		return scop;
 
-	add_field_types(ctx, scop, decl, PP, types, types_done);
+	add_field_types(ctx, scop, decl, ast_context, types, types_done);
 
 	if (strlen(decl->getName().str().c_str()) == 0)
 		return scop;
 
-	decl->print(S, PrintingPolicy(PP.getLangOpts()));
+	decl->print(S, PrintingPolicy(ast_context.getLangOpts()));
 	S.str();
 
 	scop->types[scop->n_type] = pet_type_alloc(ctx,
@@ -2617,7 +2617,7 @@ static struct pet_scop *add_type(isl_ctx *ctx, struct pet_scop *scop,
  * the fields in the structure are added first.
  */
 static struct pet_scop *add_type(isl_ctx *ctx, struct pet_scop *scop,
-	TypedefNameDecl *decl, Preprocessor &PP, PetTypes &types,
+	TypedefNameDecl *decl, ASTContext &ast_context, PetTypes &types,
 	std::set<TypeDecl *> &types_done)
 {
 	string s;
@@ -2632,13 +2632,13 @@ static struct pet_scop *add_type(isl_ctx *ctx, struct pet_scop *scop,
 	if (qt->isRecordType()) {
 		RecordDecl *rec = pet_clang_record_decl(qt);
 
-		add_field_types(ctx, scop, rec, PP, types, types_done);
+		add_field_types(ctx, scop, rec, ast_context, types, types_done);
 		S << "typedef ";
-		rec->print(S, PrintingPolicy(PP.getLangOpts()));
+		rec->print(S, PrintingPolicy(ast_context.getLangOpts()));
 		S << " ";
 		S << decl->getName();
 	} else {
-		decl->print(S, PrintingPolicy(PP.getLangOpts()));
+		decl->print(S, PrintingPolicy(ast_context.getLangOpts()));
 	}
 	S.str();
 
@@ -2718,11 +2718,11 @@ struct pet_scop *PetScan::scan_arrays(struct pet_scop *scop,
 
 	for (records_it = types.records.begin();
 	     records_it != types.records.end(); ++records_it)
-		scop = add_type(ctx, scop, *records_it, PP, types, types_done);
+		scop = add_type(ctx, scop, *records_it, ast_context, types, types_done);
 
 	for (typedefs_it = types.typedefs.begin();
 	     typedefs_it != types.typedefs.end(); ++typedefs_it)
-		scop = add_type(ctx, scop, *typedefs_it, PP, types, types_done);
+		scop = add_type(ctx, scop, *typedefs_it, ast_context, types, types_done);
 
 	return scop;
 error:
@@ -2799,7 +2799,7 @@ struct pet_scop *PetScan::scan(FunctionDecl *fd)
 void PetScan::set_current_stmt(Stmt *stmt)
 {
 	SourceLocation loc = stmt->getLocStart();
-	SourceManager &SM = PP.getSourceManager();
+	SourceManager &SM = ast_context.getSourceManager();
 
 	last_line = current_line;
 	current_line = SM.getExpansionLineNumber(loc);
