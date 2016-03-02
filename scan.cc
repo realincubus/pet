@@ -246,6 +246,24 @@ void PetScan::unsupported(Stmt *stmt)
 	report(stmt, id);
 }
 
+/* Called if we found something we (currently) cannot handle.
+ * We'll provide more informative warnings later.
+ *
+ * We only actually complain if autodetect is false.
+ */
+void PetScan::unsupported_with_extra_string(Stmt *stmt, std::string extra)
+{
+	char fixme[2000];
+	sprintf(fixme, "unsupported from %s", extra.c_str() );
+	DiagnosticsEngine &diag = ast_context.getDiagnostics();
+	unsigned id = diag.getCustomDiagID(DiagnosticsEngine::Warning,
+					   fixme );
+	report(stmt, id);
+}
+
+#define unsupported( x ) unsupported_with_extra_string( (x), string(__FILE__) + string(" ") + to_string(__LINE__) )
+#define unsupported_msg( x, y ) unsupported_with_extra_string( (x), string(__FILE__) + string(" ") + to_string(__LINE__) + string(" ") + y )
+
 /* Report an unsupported statement type, unless autodetect is set.
  */
 void PetScan::report_unsupported_statement_type(Stmt *stmt)
@@ -557,10 +575,46 @@ __isl_give pet_expr *PetScan::extract_index_expr(Expr *expr)
 		return extract_expr(cast<IntegerLiteral>(expr));
 	case Stmt::MemberExprClass:
 		return extract_index_expr(cast<MemberExpr>(expr));
+	case Stmt::CXXOperatorCallExprClass:
+		return extract_index_expr(cast<CXXOperatorCallExpr>(expr));
 	default:
 		unsupported(expr);
 	}
 	return NULL;
+}
+
+
+// TODO implement the extract_index_expr function for the CXXOperatorCallExpr 
+
+/* Extract an index expression from the given operator call expression.
+ *
+ * TODO ADAPT COMMENT: We first extract an index expression from the base.
+ * TODO ADAPT COMMENT: This will result in an index expression with a range that corresponds
+ * TODO ADAPT COMMENT: to the earlier indices.
+ * TODO ADAPT COMMENT: We then extract the current index and let
+ * TODO ADAPT COMMENT: pet_expr_access_subscript combine the two.
+ */
+
+__isl_give pet_expr *extract_index_expr(clang::CXXOperatorCallExpr *expr){
+
+	// TODO check the argument count 
+	if ( expr->getNumArgs() != 2 ) {
+	  //unsupported_msg( expr, "number of arguments is != 1" );
+	  return nullptr;
+	}
+	
+	if ( expr->getOperator() != OO_Subscript ){
+	  //unsupported_msg( expr, "the overloaded function called is not a subscript operator" );
+	  return nullptr;
+	}
+
+	Expr *base = expr->getArg(0); // should be the base 
+	Expr *index = expr->getArg(1); // should be the index
+
+	base->dumpColor();
+
+	index->dumpColor();
+
 }
 
 /* Extract an index expression from the given array subscript expression.
@@ -1088,6 +1142,7 @@ __isl_give pet_expr *PetScan::extract_expr(Expr *expr)
 		return extract_expr(cast<BinaryOperator>(expr));
 	case Stmt::ImplicitCastExprClass:
 		return extract_expr(cast<ImplicitCastExpr>(expr));
+	case Stmt::CXXOperatorCallExprClass:
 	case Stmt::ArraySubscriptExprClass:
 	case Stmt::DeclRefExprClass:
 	case Stmt::MemberExprClass:
@@ -1104,8 +1159,11 @@ __isl_give pet_expr *PetScan::extract_expr(Expr *expr)
 		return extract_expr(cast<CallExpr>(expr));
 	case Stmt::CStyleCastExprClass:
 		return extract_expr(cast<CStyleCastExpr>(expr));
+// TODO i am quiet sure the extract_access_expr wont do it
+//	case Stmt::CXXOperatorCallExprClass:
+//		return extract_expr(cast<CXXOperatorCallExpr>(expr));
 	default:
-		unsupported(expr);
+		unsupported_msg(expr, string(expr->getStmtClassName()));
 	}
 	return NULL;
 }
