@@ -191,7 +191,9 @@ static struct pet_scop *kill(__isl_take pet_loc *loc, struct pet_array *array,
 	space = isl_space_alloc(ctx, 0, 0, 0);
 	space = isl_space_set_tuple_id(space, isl_dim_out, id);
 	index = isl_multi_pw_aff_zero(space);
+	fprintf(stderr,"%s %s %d\n", __FILE__, __PRETTY_FUNCTION__, __LINE__ );
 	expr = pet_expr_kill_from_access_and_index(access, index);
+	fprintf(stderr,"%s %s %d\n", __FILE__, __PRETTY_FUNCTION__, __LINE__ );
 	return scop_from_expr(expr, state->n_stmt++, loc, pc);
 error:
 	pet_loc_free(loc);
@@ -219,17 +221,23 @@ static struct pet_array *extract_array(__isl_keep pet_expr *access,
 static struct pet_scop *scop_from_decl(__isl_keep pet_tree *tree,
 	__isl_keep pet_context *pc, struct pet_state *state)
 {
+	fprintf(stderr,"%s %s %d\n", __FILE__, __PRETTY_FUNCTION__, __LINE__ );
 	int type_size;
 	isl_ctx *ctx;
 	struct pet_array *array;
 	struct pet_scop *scop_decl, *scop;
 	pet_expr *lhs, *rhs, *pe;
 
+	fprintf(stderr,"%s %s %d\n", __FILE__, __PRETTY_FUNCTION__, __LINE__ );
 	array = extract_array(tree->u.d.var, pc, state);
+	fprintf(stderr,"%s %s %d\n", __FILE__, __PRETTY_FUNCTION__, __LINE__ );
 	if (array)
 		array->declared = 1;
+	fprintf(stderr,"%s %s %d\n", __FILE__, __PRETTY_FUNCTION__, __LINE__ );
 	scop_decl = kill(pet_tree_get_loc(tree), array, pc, state);
+	fprintf(stderr,"%s %s %d\n", __FILE__, __PRETTY_FUNCTION__, __LINE__ );
 	scop_decl = pet_scop_add_array(scop_decl, array);
+	fprintf(stderr,"%s %s %d\n", __FILE__, __PRETTY_FUNCTION__, __LINE__ );
 
 	if (tree->type != pet_tree_decl_init)
 		return scop_decl;
@@ -237,12 +245,18 @@ static struct pet_scop *scop_from_decl(__isl_keep pet_tree *tree,
 	lhs = pet_expr_copy(tree->u.d.var);
 	rhs = pet_expr_copy(tree->u.d.init);
 	type_size = pet_expr_get_type_size(lhs);
+	fprintf(stderr,"%s %s %d\n", __FILE__, __PRETTY_FUNCTION__, __LINE__ );
 	pe = pet_expr_new_binary(type_size, pet_op_assign, lhs, rhs);
+	fprintf(stderr,"%s %s %d\n", __FILE__, __PRETTY_FUNCTION__, __LINE__ );
 	scop = scop_from_expr(pe, state->n_stmt++, pet_tree_get_loc(tree), pc);
+	fprintf(stderr,"%s %s %d\n", __FILE__, __PRETTY_FUNCTION__, __LINE__ );
 
 	ctx = pet_tree_get_ctx(tree);
+	fprintf(stderr,"%s %s %d\n", __FILE__, __PRETTY_FUNCTION__, __LINE__ );
 	scop = pet_scop_add_seq(ctx, scop_decl, scop);
+	fprintf(stderr,"%s %s %d\n", __FILE__, __PRETTY_FUNCTION__, __LINE__ );
 
+	fprintf(stderr,"%s %s %d done \n", __FILE__, __PRETTY_FUNCTION__, __LINE__ );
 	return scop;
 }
 
@@ -2186,6 +2200,7 @@ static struct pet_scop *extract_kill(__isl_keep isl_set *domain,
 static struct pet_scop *extract_kills(__isl_keep isl_set *domain,
 	struct pet_scop *scop, struct pet_state *state)
 {
+	fprintf(stderr,"%s %s %d\n", __FILE__, __PRETTY_FUNCTION__, __LINE__ );
 	isl_ctx *ctx;
 	struct pet_stmt *stmt;
 	struct pet_scop *kill;
@@ -2204,6 +2219,7 @@ static struct pet_scop *extract_kills(__isl_keep isl_set *domain,
 
 	kill = extract_kill(domain, stmt, state);
 
+	fprintf(stderr,"%s %s %d scop->n_stmt %d\n", __FILE__, __PRETTY_FUNCTION__, __LINE__,scop->n_stmt );
 	for (i = 1; i < scop->n_stmt; ++i) {
 		struct pet_scop *kill_i;
 
@@ -2215,6 +2231,7 @@ static struct pet_scop *extract_kills(__isl_keep isl_set *domain,
 		kill = pet_scop_add_par(ctx, kill, kill_i);
 	}
 
+	fprintf(stderr,"done %s %s %d\n", __FILE__, __PRETTY_FUNCTION__, __LINE__ );
 	return kill;
 }
 
@@ -2370,11 +2387,13 @@ static struct pet_scop *scop_from_block(__isl_keep pet_tree *tree,
 	pc = pet_context_copy(pc);
 	scop = pet_scop_empty(isl_space_copy(space));
 	kills = pet_scop_empty(space);
+	fprintf(stderr,"in scop_from_block %d : n %d ?= 1 \n", __LINE__, tree->u.b.n);
 	for (i = 0; i < tree->u.b.n; ++i) {
 		struct pet_scop *scop_i;
 
 		if (pet_scop_has_affine_skip(scop, pet_skip_now))
 			pc = apply_affine_continue(pc, scop);
+		fprintf(stderr,"in scop_from_block %d : next recursion level \n", __LINE__);
 		scop_i = scop_from_tree(tree->u.b.child[i], pc, state);
 		pc = scop_handle_writes(scop_i, pc);
 		if (is_assignment(tree->u.b.child[i]))
@@ -2383,6 +2402,7 @@ static struct pet_scop *scop_from_block(__isl_keep pet_tree *tree,
 		pet_skip_info_seq_init(&skip, ctx, scop, scop_i);
 		pet_skip_info_seq_extract(&skip, pc, state);
 		if (scop_i && tree_is_decl(tree->u.b.child[i])) {
+			fprintf(stderr,"in scop_from_block %d : is scop_i and tree_is_decl\n", __LINE__);
 			if (tree->u.b.block) {
 				struct pet_scop *kill;
 				kill = extract_kills(domain, scop_i, state);
@@ -2526,6 +2546,7 @@ static struct pet_scop *scop_from_tree_macro(__isl_take pet_tree *tree,
 static struct pet_scop *scop_from_tree(__isl_keep pet_tree *tree,
 	__isl_keep pet_context *pc, struct pet_state *state)
 {
+	fprintf(stderr,"%s %s %d\n", __FILE__, __PRETTY_FUNCTION__, __LINE__ );
 	isl_ctx *ctx;
 	struct pet_scop *scop = NULL;
 
@@ -2533,6 +2554,7 @@ static struct pet_scop *scop_from_tree(__isl_keep pet_tree *tree,
 		return NULL;
 
 	ctx = pet_tree_get_ctx(tree);
+	fprintf(stderr,"%s %s %d type %d\n", __FILE__, __PRETTY_FUNCTION__, __LINE__, tree->type );
 	switch (tree->type) {
 	case pet_tree_error:
 		return NULL;
@@ -2571,6 +2593,7 @@ static struct pet_scop *scop_from_tree(__isl_keep pet_tree *tree,
 		return scop;
 
 	pet_scop_free(scop);
+	fprintf(stderr,"done %s %s %d\n", __FILE__, __PRETTY_FUNCTION__, __LINE__ );
 	return scop_from_tree_macro(pet_tree_copy(tree),
 					isl_id_copy(tree->label), pc, state);
 }
@@ -2614,6 +2637,7 @@ struct pet_scop *pet_scop_from_pet_tree(__isl_take pet_tree *tree, int int_size,
 		__isl_keep pet_context *pc, void *user), void *user,
 	__isl_keep pet_context *pc)
 {
+	fprintf(stderr,"%s %s %d\n", __FILE__, __PRETTY_FUNCTION__, __LINE__ );
 	struct pet_scop *scop;
 	struct pet_state state = { 0 };
 
@@ -2635,5 +2659,6 @@ struct pet_scop *pet_scop_from_pet_tree(__isl_take pet_tree *tree, int int_size,
 	if (scop)
 		scop->context = isl_set_params(scop->context);
 
+	fprintf(stderr,"done %s %s %d\n", __FILE__, __PRETTY_FUNCTION__, __LINE__ );
 	return scop;
 }

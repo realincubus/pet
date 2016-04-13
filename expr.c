@@ -2396,6 +2396,7 @@ __isl_give pet_expr *pet_expr_op_set_type(__isl_take pet_expr *expr,
  */
 __isl_keep const char *pet_expr_call_get_name(__isl_keep pet_expr *expr)
 {
+  printf("in pet_expr_call_get_name\n");
 	if (!expr)
 		return NULL;
 	if (expr->type != pet_expr_call)
@@ -3027,6 +3028,7 @@ static const char *min_max_builtins[] = {
  */
 static int is_affine_builtin(int pencil, int n_args, const char *name)
 {
+	fprintf(stderr,"int is affine builtin %s\n", name);
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(affine_builtins); ++i) {
@@ -3038,6 +3040,7 @@ static int is_affine_builtin(int pencil, int n_args, const char *name)
 			return 1;
 	}
 
+	fprintf(stderr,"is not a affine builtin returning %s\n", name);
 	return 0;
 }
 
@@ -3077,13 +3080,20 @@ static __isl_give isl_pw_aff *extract_affine_from_call(
 	if (!expr)
 		return NULL;
 	ctx = pet_expr_get_ctx(expr);
+	fprintf(stderr,"ctx is %d\n", ctx);
 	options = isl_ctx_peek_pet_options(ctx);
 
 	n = pet_expr_get_n_arg(expr);
+	fprintf(stderr,"number of arguments %d\n", n);
 	name = pet_expr_call_get_name(expr);
-	if (!is_affine_builtin(options->pencil, n, name))
+	fprintf(stderr,"name is %s\n", name);
+	fprintf(stderr,"options is %d\n", options);
+	if (!is_affine_builtin(options->pencil, n, name)){
+		fprintf(stderr,"is not a affine buildin -> returning\n");
 		return non_affine(pet_context_get_space(pc));
+	}
 
+	fprintf(stderr,"minmax \n");
 	if (is_min_or_max_builtin(name)) {
 		aff1 = pet_expr_extract_affine(expr->args[0], pc);
 		aff2 = pet_expr_extract_affine(expr->args[1], pc);
@@ -3102,6 +3112,7 @@ static __isl_give isl_pw_aff *extract_affine_from_call(
 		aff1 = isl_pw_aff_mod_val(aff1, v);
 	} else {
 		isl_val *v;
+		fprintf(stderr,"3rd option \n");
 
 		if (pet_expr_get_type(expr->args[1]) != pet_expr_int)
 			return non_affine(pet_context_get_space(pc));
@@ -3114,6 +3125,7 @@ static __isl_give isl_pw_aff *extract_affine_from_call(
 			aff1 = isl_pw_aff_ceil(aff1);
 	}
 
+	fprintf(stderr,"returning aff points to %d \n",aff1);
 	return aff1;
 }
 

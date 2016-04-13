@@ -196,6 +196,10 @@ private:
 	__isl_give pet_expr *extract_expr(clang::ConditionalOperator *expr);
 	__isl_give pet_expr *extract_expr(clang::CallExpr *expr);
 	__isl_give pet_expr *extract_expr(clang::CStyleCastExpr *expr);
+	__isl_give pet_expr *extract_cxx_expr(clang::Expr *expr);
+	__isl_give pet_expr *extract_cxx_binary_operator(clang::CXXOperatorCallExpr *expr, clang::OverloadedOperatorKind ook);
+
+	__isl_give pet_expr *extract_expr(clang::CXXMemberCallExpr *expr);
 
 	__isl_give pet_expr *extract_access_expr(clang::QualType qt,
 		__isl_take pet_expr *index);
@@ -219,7 +223,7 @@ private:
 		std::string name);
 	clang::FunctionDecl *get_summary_function(clang::CallExpr *call);
 
-	void report(clang::Stmt *stmt, unsigned id);
+	void report(clang::Stmt *stmt, unsigned id, std::string debug_information = "" );
 	void unsupported(clang::Stmt *stmt);
 	void unsupported_with_extra_string(clang::Stmt *stmt, std::string extra );
 	void report_unsupported_statement_type(clang::Stmt *stmt);

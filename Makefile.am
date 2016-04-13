@@ -76,6 +76,7 @@ libpet_la_SOURCES = \
 	value_bounds.c \
 	version.h \
 	version.cc \
+	initialize_pet.c \
 	pet_cxx.cc
 libpet_la_LDFLAGS = -version-info @versioninfo@ $(AM_LDFLAGS)
 libpet_la_LIBADD = -lclangParse -lclangSema \

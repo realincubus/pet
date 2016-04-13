@@ -144,6 +144,66 @@ static enum pet_op_type BinaryOperatorKind2pet_op_type(BinaryOperatorKind kind)
 	}
 }
 
+
+// TODO fill in the right translation from ook to pet kind
+static enum pet_op_type OverloadedOperatorKind2pet_op_type(OverloadedOperatorKind kind)
+{
+	switch (kind) {
+#if 0
+	case BO_AddAssign:
+		return pet_op_add_assign;
+	case BO_SubAssign:
+		return pet_op_sub_assign;
+	case BO_MulAssign:
+		return pet_op_mul_assign;
+	case BO_DivAssign:
+		return pet_op_div_assign;
+#endif
+	case OO_Equal:
+		return pet_op_assign;
+#if 0
+	case BO_Add:
+		return pet_op_add;
+	case BO_Sub:
+		return pet_op_sub;
+	case BO_Mul:
+		return pet_op_mul;
+	case BO_Div:
+		return pet_op_div;
+	case BO_Rem:
+		return pet_op_mod;
+	case BO_Shl:
+		return pet_op_shl;
+	case BO_Shr:
+		return pet_op_shr;
+	case BO_EQ:
+		return pet_op_eq;
+	case BO_NE:
+		return pet_op_ne;
+	case BO_LE:
+		return pet_op_le;
+	case BO_GE:
+		return pet_op_ge;
+	case BO_LT:
+		return pet_op_lt;
+	case BO_GT:
+		return pet_op_gt;
+	case BO_And:
+		return pet_op_and;
+	case BO_Xor:
+		return pet_op_xor;
+	case BO_Or:
+		return pet_op_or;
+	case BO_LAnd:
+		return pet_op_land;
+	case BO_LOr:
+		return pet_op_lor;
+#endif
+	default:
+		return pet_op_last;
+	}
+}
+
 #if defined(DECLREFEXPR_CREATE_REQUIRES_BOOL)
 static DeclRefExpr *create_DeclRefExpr(VarDecl *var)
 {
@@ -201,6 +261,7 @@ static bool const_base(QualType qt)
 	return qt.isConstQualified();
 }
 
+
 /* Create an isl_id that refers to the named declarator "decl".
  */
 static __isl_give isl_id *create_decl_id(isl_ctx *ctx, NamedDecl *decl)
@@ -223,14 +284,14 @@ PetScan::~PetScan()
 
 /* Report a diagnostic, unless autodetect is set.
  */
-void PetScan::report(Stmt *stmt, unsigned id)
+void PetScan::report(Stmt *stmt, unsigned id, std::string debug_information )
 {
 	//if (options->autodetect)
 	//	return;
 
 	SourceLocation loc = stmt->getLocStart();
 	DiagnosticsEngine &diag = ast_context.getDiagnostics();
-	DiagnosticBuilder B = diag.Report(loc, id) << stmt->getSourceRange();
+	DiagnosticBuilder B = diag.Report(loc, id) << stmt->getSourceRange() << FixItHint::CreateInsertion(stmt->getLocEnd(), (string("/*") + debug_information + string("*/")).c_str() );
 }
 
 /* Called if we found something we (currently) cannot handle.
@@ -253,16 +314,15 @@ void PetScan::unsupported(Stmt *stmt)
  */
 void PetScan::unsupported_with_extra_string(Stmt *stmt, std::string extra)
 {
-	char fixme[2000];
-	sprintf(fixme, "unsupported from %s", extra.c_str() );
 	DiagnosticsEngine &diag = ast_context.getDiagnostics();
 	unsigned id = diag.getCustomDiagID(DiagnosticsEngine::Warning,
-					   fixme );
-	report(stmt, id);
+					   "unsupported by pet" );
+	report(stmt, id, extra);
 }
 
 #define unsupported( x ) unsupported_with_extra_string( (x), string(__FILE__) + string(" ") + to_string(__LINE__) )
 #define unsupported_msg( x, y ) unsupported_with_extra_string( (x), string(__FILE__) + string(" ") + to_string(__LINE__) + string(" ") + y )
+//#define unsupported_msg( x, y ) unsupported( (x) )
 
 /* Report an unsupported statement type, unless autodetect is set.
  */
@@ -392,6 +452,7 @@ __isl_give pet_expr *PetScan::extract_expr(const llvm::APInt &val)
  */
 static int get_type_size(QualType qt, ASTContext &ast_context)
 {
+	std::cerr << __PRETTY_FUNCTION__ << std::endl;
 	int size;
 
 	if (!qt->isIntegerType())
@@ -401,6 +462,7 @@ static int get_type_size(QualType qt, ASTContext &ast_context)
 	if (!qt->isUnsignedIntegerType())
 		size = -size;
 
+	std::cerr << "done " << __PRETTY_FUNCTION__ << " " << qt.getAsString() << " "  << size << std::endl;
 	return size;
 }
 
@@ -452,10 +514,55 @@ __isl_give pet_expr *PetScan::extract_index_expr(ImplicitCastExpr *expr)
 	return extract_index_expr(expr->getSubExpr());
 }
 
+static bool isStdVector( QualType qt ) {
+  std::cerr << __PRETTY_FUNCTION__ << std::endl;
+  auto type_ptr = qt.getTypePtr();
+
+  std::cerr << "getTypeClassName " << type_ptr->getTypeClassName() << std::endl;
+
+  // the std::vector is a record
+  if ( !type_ptr->isRecordType() ) return false;
+
+  // get the declaration 
+  auto* record_type = type_ptr->getAs<RecordType>();
+  auto* record_decl = record_type->getDecl();
+
+  std::cerr << "qualified name " << record_decl->getQualifiedNameAsString() << std::endl;
+  if ( record_decl->getQualifiedNameAsString() == "std::vector" ) return true;
+
+  type_ptr->dump();
+  std::cerr << "done " << __PRETTY_FUNCTION__ << std::endl;
+  return false;
+}
+
+static bool isStdArray( QualType qt ) {
+  std::cerr << __PRETTY_FUNCTION__ << std::endl;
+  auto type_ptr = qt.getTypePtr();
+
+  std::cerr << "getTypeClassName " << type_ptr->getTypeClassName() << std::endl;
+
+  // the std::array is a record
+  if ( !type_ptr->isRecordType() ) return false;
+
+  // get the declaration 
+  auto* record_type = type_ptr->getAs<RecordType>();
+  auto* record_decl = record_type->getDecl();
+
+  std::cerr << "qualified name " << record_decl->getQualifiedNameAsString() << std::endl;
+  if ( record_decl->getQualifiedNameAsString() == "std::array" ) return true;
+
+  type_ptr->dump();
+  std::cerr << "done " << __PRETTY_FUNCTION__ << std::endl;
+  return false;
+}
+
 /* Return the depth of an array of the given type.
  */
 static int array_depth(const Type *type)
 {
+	std::cerr << __PRETTY_FUNCTION__ << " " << type << std::endl;
+	type->dump();
+
 	if (type->isPointerType())
 		return 1 + array_depth(type->getPointeeType().getTypePtr());
 	if (type->isArrayType()) {
@@ -464,6 +571,36 @@ static int array_depth(const Type *type)
 		atype = cast<ArrayType>(type);
 		return 1 + array_depth(atype->getElementType().getTypePtr());
 	}
+
+	// add support for c++ sequential memory types
+	if ( const TemplateSpecializationType* tst = type->getAs<TemplateSpecializationType>() ){
+	  std::cerr << "is a TemplateSpecializationType with args " << tst->getNumArgs() << std::endl;
+
+	  // check for a std::vector 
+	  if ( tst->getNumArgs() == 1 ) {
+	    // get the record that belongs to this template
+	    auto qual_type = tst->desugar();
+	    if ( isStdVector( qual_type ) ) {
+	      auto arg0 = tst->getArg(0);
+	      auto qual_type = arg0.getAsType();
+	      // recurse into the next level
+	      return 1 + array_depth( qual_type.getTypePtr() ); 
+	    }
+	  }
+
+	  // check for a std::array
+	  if ( tst->getNumArgs() == 2 ) {
+	    // get the record that belongs to this template
+	    auto qual_type = tst->desugar();
+	    if ( isStdArray( qual_type ) ) {
+	      auto arg0 = tst->getArg(0);
+	      auto qual_type = arg0.getAsType();
+	      // recurse into the next level
+	      return 1 + array_depth( qual_type.getTypePtr() ); 
+	    }
+	  }
+	}
+	std::cerr << "done" << __PRETTY_FUNCTION__ << std::endl;
 	return 0;
 }
 
@@ -476,6 +613,7 @@ static int array_depth(const Type *type)
  */
 static int extract_depth(__isl_keep isl_multi_pw_aff *index)
 {
+	std::cerr << __PRETTY_FUNCTION__ << std::endl;
 	isl_id *id;
 	ValueDecl *decl;
 
@@ -507,6 +645,7 @@ static int extract_depth(__isl_keep isl_multi_pw_aff *index)
 	decl = (ValueDecl *) isl_id_get_user(id);
 	isl_id_free(id);
 
+	std::cerr << "done " << __PRETTY_FUNCTION__ << std::endl;
 	return array_depth(decl->getType().getTypePtr());
 }
 
@@ -514,6 +653,7 @@ static int extract_depth(__isl_keep isl_multi_pw_aff *index)
  */
 static int extract_depth(__isl_keep pet_expr *expr)
 {
+  std::cerr << __PRETTY_FUNCTION__ << std::endl;
 	isl_multi_pw_aff *index;
 	int depth;
 
@@ -521,6 +661,7 @@ static int extract_depth(__isl_keep pet_expr *expr)
 	depth = extract_depth(index);
 	isl_multi_pw_aff_free(index);
 
+  std::cerr << "done " << __PRETTY_FUNCTION__ << " depth is " << depth << std::endl;
 	return depth;
 }
 
@@ -532,6 +673,7 @@ static int extract_depth(__isl_keep pet_expr *expr)
  */
 __isl_give pet_expr *PetScan::extract_index_expr(DeclRefExpr *expr)
 {
+  std::cerr << __PRETTY_FUNCTION__ << std::endl;
 	return extract_index_expr(expr->getDecl());
 }
 
@@ -543,6 +685,7 @@ __isl_give pet_expr *PetScan::extract_index_expr(DeclRefExpr *expr)
  */
 __isl_give pet_expr *PetScan::extract_index_expr(ValueDecl *decl)
 {
+  std::cerr << __PRETTY_FUNCTION__ << std::endl;
 	isl_id *id;
 	isl_space *space;
 
@@ -564,6 +707,7 @@ __isl_give pet_expr *PetScan::extract_index_expr(ValueDecl *decl)
  */
 __isl_give pet_expr *PetScan::extract_index_expr(Expr *expr)
 {
+  std::cerr << __PRETTY_FUNCTION__ << std::endl;
 	switch (expr->getStmtClass()) {
 	case Stmt::ImplicitCastExprClass:
 		return extract_index_expr(cast<ImplicitCastExpr>(expr));
@@ -595,26 +739,35 @@ __isl_give pet_expr *PetScan::extract_index_expr(Expr *expr)
  * TODO ADAPT COMMENT: pet_expr_access_subscript combine the two.
  */
 
-__isl_give pet_expr *extract_index_expr(clang::CXXOperatorCallExpr *expr){
+// TODO CXXOperatorCall does not just cover the operator [] but also the assign operator between statements
+__isl_give pet_expr *PetScan::extract_index_expr(clang::CXXOperatorCallExpr *expr){
 
-	// TODO check the argument count 
+	// check the argument count 
 	if ( expr->getNumArgs() != 2 ) {
-	  //unsupported_msg( expr, "number of arguments is != 1" );
+	  unsupported_msg( expr, "number of arguments is != 1" );
 	  return nullptr;
 	}
 	
+	// check the operator type to be a subscript operation
 	if ( expr->getOperator() != OO_Subscript ){
-	  //unsupported_msg( expr, "the overloaded function called is not a subscript operator" );
+	  std::cerr << "dumping expr " << std::endl;
+	  expr->dump();
+	  unsupported_msg( expr, "the overloaded function called is not a subscript operator" );
 	  return nullptr;
 	}
 
 	Expr *base = expr->getArg(0); // should be the base 
-	Expr *index = expr->getArg(1); // should be the index
+	Expr *idx = expr->getArg(1); // should be the index
 
 	base->dumpColor();
+	idx->dumpColor();
 
-	index->dumpColor();
+	pet_expr *base_expr = extract_index_expr(base);
+	pet_expr *index = extract_expr(idx);
 
+	base_expr = pet_expr_access_subscript(base_expr, index);
+
+	return base_expr;
 }
 
 /* Extract an index expression from the given array subscript expression.
@@ -770,7 +923,9 @@ __isl_give pet_expr *PetScan::extract_expr(BinaryOperator *expr)
 			lhs = pet_expr_access_set_read(lhs, 1);
 	}
 
+	std::cerr << "get_type_size in BinaryOperator " << std::endl;
 	type_size = get_type_size(expr->getType(), ast_context);
+	std::cerr << "done get_type_size in BinaryOperator " << std::endl;
 	return pet_expr_new_binary(type_size, op, lhs, rhs);
 }
 
@@ -778,6 +933,7 @@ __isl_give pet_expr *PetScan::extract_expr(BinaryOperator *expr)
  */
 __isl_give pet_tree *PetScan::extract(Decl *decl)
 {
+	std::cerr << __PRETTY_FUNCTION__ << std::endl;
 	VarDecl *vd;
 	pet_expr *lhs, *rhs;
 	pet_tree *tree;
@@ -793,6 +949,7 @@ __isl_give pet_tree *PetScan::extract(Decl *decl)
 		tree = pet_tree_new_decl_init(lhs, rhs);
 	}
 
+	std::cerr << "done " << __PRETTY_FUNCTION__ << std::endl;
 	return tree;
 }
 
@@ -802,6 +959,7 @@ __isl_give pet_tree *PetScan::extract(Decl *decl)
  */
 __isl_give pet_tree *PetScan::extract(DeclStmt *stmt)
 {
+	std::cerr << __PRETTY_FUNCTION__ << std::endl;
 	pet_tree *tree;
 	unsigned n;
 
@@ -814,6 +972,8 @@ __isl_give pet_tree *PetScan::extract(DeclStmt *stmt)
 			pet_tree *tree_i;
 			pet_loc *loc;
 
+
+			std::cerr << __PRETTY_FUNCTION__ << "extract group[i]" << std::endl;
 			tree_i = extract(group[i]);
 			loc = construct_pet_loc(group[i]->getSourceRange(),
 						false);
@@ -824,7 +984,9 @@ __isl_give pet_tree *PetScan::extract(DeclStmt *stmt)
 		return tree;
 	}
 
-	return extract(stmt->getSingleDecl());
+	auto* ret = extract(stmt->getSingleDecl());
+	std::cerr << "done " << __PRETTY_FUNCTION__ << std::endl;
+	return ret;
 }
 
 /* Construct a pet_expr representing a conditional operation.
@@ -878,6 +1040,7 @@ __isl_give pet_expr *PetScan::extract_expr(FloatingLiteral *expr)
 __isl_give pet_expr *PetScan::extract_access_expr(QualType qt,
 	__isl_take pet_expr *index)
 {
+	std::cerr << __PRETTY_FUNCTION__ << std::endl;
 	int depth;
 	int type_size;
 
@@ -887,6 +1050,7 @@ __isl_give pet_expr *PetScan::extract_access_expr(QualType qt,
 	index = pet_expr_set_type_size(index, type_size);
 	index = pet_expr_access_set_depth(index, depth);
 
+	std::cerr << "done " << __PRETTY_FUNCTION__ << std::endl;
 	return index;
 }
 
@@ -899,6 +1063,8 @@ __isl_give pet_expr *PetScan::extract_access_expr(QualType qt,
 __isl_give pet_expr *PetScan::extract_access_expr(Expr *expr)
 {
 	pet_expr *index;
+
+	expr->dump();
 
 	index = extract_index_expr(expr);
 
@@ -944,6 +1110,7 @@ __isl_give pet_expr *PetScan::extract_assume(Expr *expr)
 __isl_give pet_expr *PetScan::extract_argument(FunctionDecl *fd, int pos,
 	Expr *expr, bool detect_writes)
 {
+	std::cerr << __PRETTY_FUNCTION__ << " " << __LINE__ << std::endl;
 	pet_expr *res;
 	int is_addr = 0, is_partial = 0;
 
@@ -959,24 +1126,33 @@ __isl_give pet_expr *PetScan::extract_argument(FunctionDecl *fd, int pos,
 		}
 	}
 	res = extract_expr(expr);
-	if (!res)
-		return NULL;
-	if (array_depth(expr->getType().getTypePtr()) > 0)
-		is_partial = 1;
-	if (detect_writes && (is_addr || is_partial) &&
-	    pet_expr_get_type(res) == pet_expr_access) {
-		ParmVarDecl *parm;
-		if (!fd->hasPrototype()) {
-			report_prototype_required(expr);
-			return pet_expr_free(res);
-		}
-		parm = fd->getParamDecl(pos);
-		if (!const_base(parm->getType()))
-			res = mark_may_write(res);
+
+	if ( !fd->isVariadic() ) {
+	  if (!res)
+		  return NULL;
+	  if (array_depth(expr->getType().getTypePtr()) > 0)
+		  is_partial = 1;
+	  if (detect_writes && (is_addr || is_partial) &&
+	      pet_expr_get_type(res) == pet_expr_access) {
+		  ParmVarDecl *parm;
+		  if (!fd->hasPrototype()) {
+			  report_prototype_required(expr);
+			  return pet_expr_free(res);
+		  }
+
+		  parm = fd->getParamDecl(pos);
+		  // TODO it is possible that getParamDecl does not return a Decl
+		  //      because the called function is a variadic function like printf 
+		  if (!const_base(parm->getType()))
+			  res = mark_may_write(res);
+	  }
+	}else{
+	  unsupported_with_extra_string( expr, "this argument is passed to a variadic function -> cannot determin constness -> assuming const !" );
 	}
 
 	if (is_addr)
 		res = pet_expr_new_unary(0, pet_op_address_of, res);
+	std::cerr << __PRETTY_FUNCTION__ << " done " << __LINE__ << std::endl;
 	return res;
 }
 
@@ -1020,6 +1196,7 @@ FunctionDecl *PetScan::find_decl_from_name(CallExpr *call, string name)
  */
 FunctionDecl *PetScan::get_summary_function(CallExpr *call)
 {
+	std::cerr << __PRETTY_FUNCTION__ << " " << __LINE__ << std::endl;
 	FunctionDecl *decl = call->getDirectCallee();
 	if (!decl)
 		return NULL;
@@ -1042,6 +1219,7 @@ FunctionDecl *PetScan::get_summary_function(CallExpr *call)
 
 		return find_decl_from_name(call, name);
 	}
+	std::cerr << __PRETTY_FUNCTION__ << " done " << __LINE__ << std::endl;
 
 	return decl;
 }
@@ -1060,6 +1238,7 @@ FunctionDecl *PetScan::get_summary_function(CallExpr *call)
  */
 __isl_give pet_expr *PetScan::extract_expr(CallExpr *expr)
 {
+	std::cerr << __PRETTY_FUNCTION__ << std::endl;
 	pet_expr *res = NULL;
 	FunctionDecl *fd;
 	string name;
@@ -1095,6 +1274,53 @@ __isl_give pet_expr *PetScan::extract_expr(CallExpr *expr)
 
 	res = set_summary(res, fd);
 
+	std::cerr << "done " << __PRETTY_FUNCTION__ << std::endl;
+	return res;
+}
+
+/* Construct a pet_expr representing a member call expr
+ */
+__isl_give pet_expr *PetScan::extract_expr(CXXMemberCallExpr *expr)
+{
+	std::cerr << __PRETTY_FUNCTION__ << std::endl;
+	pet_expr *res = NULL;
+	FunctionDecl *fd;
+	string name;
+	unsigned n_arg;
+	bool is_kill;
+
+	fd = expr->getDirectCallee();
+	if (!fd) {
+		unsupported(expr);
+		return NULL;
+	}
+
+	name = fd->getDeclName().getAsString();
+	std::cerr << __PRETTY_FUNCTION__ << " " << __LINE__ << " " << " name is TODO may need fqn" << name << std::endl;
+	n_arg = expr->getNumArgs();
+
+	if (options->pencil && n_arg == 1 && name == "__pencil_assume")
+		return extract_assume(expr->getArg(0));
+	is_kill = options->pencil && name == "__pencil_kill";
+
+	std::cerr << __PRETTY_FUNCTION__ << " " << __LINE__ << std::endl;
+	res = pet_expr_new_call(ctx, name.c_str(), n_arg);
+	if (!res)
+		return NULL;
+
+	for (int i = 0; i < n_arg; ++i) {
+		Expr *arg = expr->getArg(i);
+		res = pet_expr_set_arg(res, i,
+			    PetScan::extract_argument(fd, i, arg, !is_kill));
+	}
+
+	fd = get_summary_function(expr);
+	if (!fd)
+		return pet_expr_free(res);
+
+	res = set_summary(res, fd);
+
+	std::cerr << "done " << __PRETTY_FUNCTION__ << std::endl;
 	return res;
 }
 
@@ -1130,6 +1356,137 @@ __isl_give pet_expr *PetScan::extract_expr(EnumConstantDecl *ecd)
 	return pet_expr_new_int(v);
 }
 
+// TODO add all assignment operators to this 
+bool isAssignmentOp( OverloadedOperatorKind ook ) {
+  switch( ook ) {
+    case OO_Equal:
+      return true;
+  }
+  return false;
+}
+
+//  ‘OO_New’ not handled in switch [-Wswitch]
+//  ‘OO_Delete’ not handled in switch [-Wswitch]
+//  ‘OO_Array_New’ not handled in switch [-Wswitch]
+//  ‘OO_Array_Delete’ not handled in switch [-Wswitch]
+//  ‘OO_Plus’ not handled in switch [-Wswitch]
+//  ‘OO_Minus’ not handled in switch [-Wswitch]
+//  ‘OO_Star’ not handled in switch [-Wswitch]
+//  ‘OO_Slash’ not handled in switch [-Wswitch]
+//  ‘OO_Percent’ not handled in switch [-Wswitch]
+//  ‘OO_Caret’ not handled in switch [-Wswitch]
+//  ‘OO_Amp’ not handled in switch [-Wswitch]
+//  ‘OO_Pipe’ not handled in switch [-Wswitch]
+//  ‘OO_Tilde’ not handled in switch [-Wswitch]
+//  ‘OO_Exclaim’ not handled in switch [-Wswitch]
+//  ‘OO_Less’ not handled in switch [-Wswitch]
+//  ‘OO_Greater’ not handled in switch [-Wswitch]
+//  ‘OO_PlusEqual’ not handled in switch [-Wswitch]
+//  ‘OO_MinusEqual’ not handled in switch [-Wswitch]
+//  ‘OO_StarEqual’ not handled in switch [-Wswitch]
+//  ‘OO_SlashEqual’ not handled in switch [-Wswitch]
+//  ‘OO_PercentEqual’ not handled in switch [-Wswitch]
+//  ‘OO_CaretEqual’ not handled in switch [-Wswitch]
+//  ‘OO_AmpEqual’ not handled in switch [-Wswitch]
+//  ‘OO_PipeEqual’ not handled in switch [-Wswitch]
+//  ‘OO_LessLess’ not handled in switch [-Wswitch]
+//  ‘OO_GreaterGreater’ not handled in switch [-Wswitch]
+//  ‘OO_LessLessEqual’ not handled in switch [-Wswitch]
+//  ‘OO_GreaterGreaterEqual’ not handled in switch [-Wswitch]
+//  ‘OO_EqualEqual’ not handled in switch [-Wswitch]
+//  ‘OO_ExclaimEqual’ not handled in switch [-Wswitch]
+//  ‘OO_LessEqual’ not handled in switch [-Wswitch]
+//  ‘OO_GreaterEqual’ not handled in switch [-Wswitch]
+//  ‘OO_AmpAmp’ not handled in switch [-Wswitch]
+//  ‘OO_PipePipe’ not handled in switch [-Wswitch]
+//  ‘OO_PlusPlus’ not handled in switch [-Wswitch]
+//  ‘OO_MinusMinus’ not handled in switch [-Wswitch]
+//  ‘OO_Comma’ not handled in switch [-Wswitch]
+//  ‘OO_ArrowStar’ not handled in switch [-Wswitch]
+//  ‘OO_Arrow’ not handled in switch [-Wswitch]
+//  ‘OO_Call’ not handled in switch [-Wswitch]
+//  ‘OO_Conditional’ not handled in switch [-Wswitch]
+//  ‘OO_Coawait’ not handled in switch [-Wswitch]
+//  ‘NUM_OVERLOADED_OPERATORS’ not handled in switch [-Wswitch]
+
+// TODO add all assignment operators to this 
+bool isCompoundAssignmentOp( OverloadedOperatorKind ook ) {
+  switch( ook ) {
+    case OO_GreaterEqual:
+    case OO_LessEqual:
+    case OO_ExclaimEqual:
+    case OO_GreaterGreaterEqual:
+    case OO_LessLessEqual:
+    case OO_PipeEqual:
+    case OO_AmpEqual:
+    case OO_CaretEqual:
+    case OO_PercentEqual:
+    case OO_SlashEqual:
+    case OO_StarEqual:
+    case OO_MinusEqual:
+    case OO_PlusEqual:
+      return true;
+  }
+  return false;
+}
+
+/* Construct a pet_expr representing a binary operator expression.
+ *
+ * If the top level operator is an assignment and the LHS is an access,
+ * then we mark that access as a write.  If the operator is a compound
+ * assignment, the access is marked as both a read and a write.
+ */
+__isl_give pet_expr *PetScan::extract_cxx_binary_operator(CXXOperatorCallExpr *expr, OverloadedOperatorKind ook )
+{
+	std::cerr << __PRETTY_FUNCTION__ << std::endl;
+	int type_size;
+	pet_expr *lhs, *rhs;
+
+	// convert ook to pet representation
+
+	auto op = OverloadedOperatorKind2pet_op_type(ook);
+	if (op == pet_op_last) {
+	  unsupported_msg(expr,string("cannot handle this type is ") + to_string(op) );
+	  return nullptr;
+	}
+	// TODO in the case of a cxx operator call the lhs and rhs are the first and second function call arguments
+	auto arg0 = expr->getArg(0);
+	auto arg1 = expr->getArg(1);
+
+	lhs = extract_expr(arg0);
+	rhs = extract_expr(arg1);
+
+	if ( isAssignmentOp( ook ) &&
+	    pet_expr_get_type(lhs) == pet_expr_access) {
+		lhs = mark_write(lhs);
+		if (isCompoundAssignmentOp(ook))
+			lhs = pet_expr_access_set_read(lhs, 1);
+	}
+
+	type_size = get_type_size(expr->getType(), ast_context);
+	return pet_expr_new_binary(type_size, op, lhs, rhs);
+}
+
+
+/* Construct a pet_expr representing a CXXOperatorCallExpr.
+ */
+// TODO issue a warning to tell the user that we assume it has no side effects
+__isl_give pet_expr *PetScan::extract_cxx_expr(Expr *op)
+{
+  std::cerr << __PRETTY_FUNCTION__ << std::endl;
+  auto cxx_operator = cast<CXXOperatorCallExpr>(op);
+  switch( cxx_operator->getOperator() ){
+    case OO_Equal:
+      return extract_cxx_binary_operator(cxx_operator,cxx_operator->getOperator());
+    case OO_Subscript:
+      return extract_access_expr(op);
+    default:
+      unsupported_msg( op , string ("cannot handle this operator") + to_string(cxx_operator->getOperator()) );
+  }
+  return nullptr;
+}
+
+
 /* Try and construct a pet_expr representing "expr".
  */
 __isl_give pet_expr *PetScan::extract_expr(Expr *expr)
@@ -1143,6 +1500,7 @@ __isl_give pet_expr *PetScan::extract_expr(Expr *expr)
 	case Stmt::ImplicitCastExprClass:
 		return extract_expr(cast<ImplicitCastExpr>(expr));
 	case Stmt::CXXOperatorCallExprClass:
+		return extract_cxx_expr(expr);
 	case Stmt::ArraySubscriptExprClass:
 	case Stmt::DeclRefExprClass:
 	case Stmt::MemberExprClass:
@@ -1159,9 +1517,8 @@ __isl_give pet_expr *PetScan::extract_expr(Expr *expr)
 		return extract_expr(cast<CallExpr>(expr));
 	case Stmt::CStyleCastExprClass:
 		return extract_expr(cast<CStyleCastExpr>(expr));
-// TODO i am quiet sure the extract_access_expr wont do it
-//	case Stmt::CXXOperatorCallExprClass:
-//		return extract_expr(cast<CXXOperatorCallExpr>(expr));
+	case Stmt::CXXMemberCallExprClass:
+		return extract_expr(cast<CXXMemberCallExpr>(expr));
 	default:
 		unsupported_msg(expr, string(expr->getStmtClassName()));
 	}
@@ -1233,6 +1590,25 @@ ValueDecl *PetScan::extract_induction_variable(BinaryOperator *init)
 	return decl;
 }
 
+// TODO this just works with sugared types by simply adding std:: infront of vector this will no work anymore
+// TODO add comment
+static bool isIteratorType( QualType qt ){
+
+  // TODO make it query the type we are iterating over
+  //      if it is a vector or array its ok otherwise not
+
+  auto type_ptr = qt.getTypePtr();
+
+  std::cerr << "getTypeClassName " << type_ptr->getTypeClassName() << std::endl;
+  std::cerr << "sugared typename " << qt.getAsString() << std::endl;
+
+  if ( qt.getAsString() != "vector<double>::iterator" ) return false;
+
+  type_ptr->dump();
+  std::cerr << "done " << __PRETTY_FUNCTION__ << std::endl;
+  return true;
+}
+
 /* Given the initialization statement of a for loop and the single
  * declaration in this initialization statement,
  * extract the induction variable, i.e., the (integer) variable being
@@ -1245,7 +1621,7 @@ VarDecl *PetScan::extract_induction_variable(Stmt *init, Decl *decl)
 	vd = cast<VarDecl>(decl);
 
 	const QualType type = vd->getType();
-	if (!type->isIntegerType()) {
+	if (!type->isIntegerType() && !isIteratorType( type ) ) {
 		unsupported(init);
 		return NULL;
 	}
@@ -1380,6 +1756,7 @@ __isl_give pet_expr *PetScan::extract_compound_increment(
 __isl_give pet_expr *PetScan::extract_increment(clang::ForStmt *stmt,
 	ValueDecl *iv)
 {
+	std::cerr << __PRETTY_FUNCTION__ << std::endl;
 	Stmt *inc = stmt->getInc();
 
 	if (!inc) {
@@ -1396,6 +1773,7 @@ __isl_give pet_expr *PetScan::extract_increment(clang::ForStmt *stmt,
 		return extract_binary_increment(cast<BinaryOperator>(inc), iv);
 
 	unsupported(inc);
+	std::cerr << "done " <<  __PRETTY_FUNCTION__ << std::endl;
 	return NULL;
 }
 
@@ -1440,6 +1818,7 @@ __isl_give pet_tree *PetScan::extract(WhileStmt *stmt)
  */
 __isl_give pet_tree *PetScan::extract_for(ForStmt *stmt)
 {
+	std::cerr << __PRETTY_FUNCTION__ << std::endl;
 	BinaryOperator *ass;
 	Decl *decl;
 	Stmt *init;
@@ -1486,18 +1865,27 @@ __isl_give pet_tree *PetScan::extract_for(ForStmt *stmt)
 
 	declared = !initialization_assignment(stmt->getInit());
 	tree = extract(stmt->getBody());
+
+	// lets see what it understood
+	pet_tree_dump( tree );
+
 	if (partial)
 		return tree;
+	std::cerr << "pe_iv extraction" << std::endl;
 	pe_iv = extract_access_expr(iv);
+	std::cerr << "done pe_iv extraction" << std::endl;
 	pe_iv = mark_write(pe_iv);
 	pe_init = extract_expr(rhs);
 	if (!stmt->getCond())
 		pe_cond = pet_expr_new_int(isl_val_one(ctx));
 	else
 		pe_cond = extract_expr(stmt->getCond());
+	
+	std::cerr << "after cond extraction" << std::endl;
 	pe_inc = extract_increment(stmt, iv);
 	tree = pet_tree_new_for(independent, declared, pe_iv, pe_init, pe_cond,
 				pe_inc, tree);
+	std::cerr << "done " <<  __PRETTY_FUNCTION__ << std::endl;
 	return tree;
 }
 

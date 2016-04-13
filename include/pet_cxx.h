@@ -16,7 +16,6 @@ class Pet {
   public:
 
     Pet( 
-	    isl_ctx* ctx,
 	    clang::DiagnosticsEngine& Diags,
 	    clang::ASTContext* clang_ctx
     );

@@ -105,7 +105,7 @@ struct pet_stmt *pet_stmt_from_pet_tree(__isl_take isl_set *domain,
 		label = isl_id_copy(tree->label);
 	} else {
 		snprintf(name, sizeof(name), "S_%d", id);
-		printf("PET DBUEG: new statement is created with name %s\n",name);
+		fprintf(stderr,"PET DBUEG: new statement is created with name %s\n",name);
 		label = isl_id_alloc(ctx, name, NULL);
 	}
 	domain = isl_set_set_tuple_id(domain, label);
@@ -2801,13 +2801,17 @@ __isl_give isl_union_set *pet_scop_collect_domains(struct pet_scop *scop)
 
 	domain = isl_union_set_empty(isl_set_get_space(scop->context));
 
+	printf("pet_scop_collect_domains from %d statements\n", scop->n_stmt);
+
 	for (i = 0; i < scop->n_stmt; ++i) {
 		domain_i = isl_set_copy(scop->stmts[i]->domain);
+		isl_set_dump( domain_i );
 		if (scop->stmts[i]->n_arg > 0)
 			domain_i = isl_map_domain(isl_set_unwrap(domain_i));
 		domain = isl_union_set_add_set(domain, domain_i);
 	}
 
+	isl_union_set_dump( domain );
 	return domain;
 }
 
