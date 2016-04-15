@@ -672,7 +672,7 @@ struct PetASTConsumer : public ASTConsumer {
 				continue;
 			if (end < loc.start)
 				continue;
-			PetScan ps(PP, ast_context, loc, options,
+			PetScan ps(ast_context, loc, options,
 				    isl_union_map_copy(vb), independent);
 			scop = ps.scan(fd);
 			call_fn(scop);
@@ -704,7 +704,7 @@ struct PetASTConsumer : public ASTConsumer {
 				ScopLoc loc;
 				pet_scop *scop;
 				out << "starting autodetect" << endl;
-				PetScan ps(PP, ast_context, loc, options,
+				PetScan ps(ast_context, loc, options,
 					    isl_union_map_copy(vb),
 					    independent);
 				out << "after creation" << endl;

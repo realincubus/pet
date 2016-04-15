@@ -286,12 +286,12 @@ PetScan::~PetScan()
  */
 void PetScan::report(Stmt *stmt, unsigned id, std::string debug_information )
 {
-	//if (options->autodetect)
-	//	return;
+	if (options->autodetect)
+		return;
 
 	SourceLocation loc = stmt->getLocStart();
 	DiagnosticsEngine &diag = ast_context.getDiagnostics();
-	DiagnosticBuilder B = diag.Report(loc, id) << stmt->getSourceRange() << FixItHint::CreateInsertion(stmt->getLocEnd(), (string("/*") + debug_information + string("*/")).c_str() );
+	DiagnosticBuilder B = diag.Report(loc, id) << debug_information << stmt->getSourceRange() ;
 }
 
 /* Called if we found something we (currently) cannot handle.
@@ -316,8 +316,8 @@ void PetScan::unsupported_with_extra_string(Stmt *stmt, std::string extra)
 {
 	DiagnosticsEngine &diag = ast_context.getDiagnostics();
 	unsigned id = diag.getCustomDiagID(DiagnosticsEngine::Warning,
-					   "unsupported by pet" );
-	report(stmt, id, extra);
+					   "unsupported by pet: %0" );
+	report(stmt, id, extra );
 }
 
 #define unsupported( x ) unsupported_with_extra_string( (x), string(__FILE__) + string(" ") + to_string(__LINE__) )
@@ -455,6 +455,8 @@ static int get_type_size(QualType qt, ASTContext &ast_context)
 	std::cerr << __PRETTY_FUNCTION__ << std::endl;
 	int size;
 
+	std::cerr << qt.getAsString() << std::endl;
+
 	if (!qt->isIntegerType())
 		return 0;
 
@@ -472,6 +474,10 @@ static int get_type_size(QualType qt, ASTContext &ast_context)
  */
 static int get_type_size(ValueDecl *decl)
 {
+	if ( FunctionDecl* fdecl = dyn_cast_or_null<FunctionDecl>( decl ) ){
+	  return get_type_size(fdecl->getReturnType(),decl->getASTContext() );
+	}
+	
 	return get_type_size(decl->getType(), decl->getASTContext());
 }
 
@@ -689,6 +695,8 @@ __isl_give pet_expr *PetScan::extract_index_expr(ValueDecl *decl)
 	isl_id *id;
 	isl_space *space;
 
+	decl->dump();
+
 	if (isa<EnumConstantDecl>(decl))
 		return extract_expr(cast<EnumConstantDecl>(decl));
 
@@ -697,6 +705,33 @@ __isl_give pet_expr *PetScan::extract_index_expr(ValueDecl *decl)
 	space = isl_space_set_tuple_id(space, isl_dim_out, id);
 
 	return pet_expr_from_index(isl_multi_pw_aff_zero(space));
+}
+
+/* 
+ * hack to allow calls to functions that are not easily checkable for affineness
+ */
+__isl_give pet_expr *PetScan::extract_index_expr(CallExpr *call)
+{
+  std::cerr << __PRETTY_FUNCTION__ << std::endl;
+  // TODO dont do this if the function is an affine buildin 
+
+  // get the text of how the function was called 
+  auto& SM = ast_context.getSourceManager();
+  std::string call_text = Lexer::getSourceText( 
+      CharSourceRange::getTokenRange( call->getSourceRange() ),
+      SM, 
+      LangOptions() 
+  ) ;
+
+  std::cerr << "call_text " << call_text << std::endl;
+
+  // create a decl id from this call
+  auto id = isl_id_alloc(ctx, call_text.c_str(), cast<NamedDecl>(call->getCalleeDecl()) );
+  auto space = isl_space_alloc(ctx, 0, 0, 0);
+  space = isl_space_set_tuple_id(space, isl_dim_out, id);
+
+  std::cerr << "done " << __PRETTY_FUNCTION__ << std::endl;
+  return pet_expr_from_index(isl_multi_pw_aff_zero(space));
 }
 
 /* Construct a pet_expr representing the index expression "expr"
@@ -721,6 +756,8 @@ __isl_give pet_expr *PetScan::extract_index_expr(Expr *expr)
 		return extract_index_expr(cast<MemberExpr>(expr));
 	case Stmt::CXXOperatorCallExprClass:
 		return extract_index_expr(cast<CXXOperatorCallExpr>(expr));
+	case Stmt::CallExprClass:
+		return extract_index_expr(cast<CallExpr>(expr));
 	default:
 		unsupported(expr);
 	}
@@ -925,7 +962,7 @@ __isl_give pet_expr *PetScan::extract_expr(BinaryOperator *expr)
 
 	std::cerr << "get_type_size in BinaryOperator " << std::endl;
 	type_size = get_type_size(expr->getType(), ast_context);
-	std::cerr << "done get_type_size in BinaryOperator " << std::endl;
+	std::cerr << "done get_type_size in BinaryOperator test" << std::endl;
 	return pet_expr_new_binary(type_size, op, lhs, rhs);
 }
 
@@ -1041,6 +1078,7 @@ __isl_give pet_expr *PetScan::extract_access_expr(QualType qt,
 	__isl_take pet_expr *index)
 {
 	std::cerr << __PRETTY_FUNCTION__ << std::endl;
+
 	int depth;
 	int type_size;
 
@@ -1050,6 +1088,7 @@ __isl_give pet_expr *PetScan::extract_access_expr(QualType qt,
 	index = pet_expr_set_type_size(index, type_size);
 	index = pet_expr_access_set_depth(index, depth);
 
+	std::cerr << "depth " << depth << " type size " << type_size << std::endl;
 	std::cerr << "done " << __PRETTY_FUNCTION__ << std::endl;
 	return index;
 }
@@ -1064,9 +1103,10 @@ __isl_give pet_expr *PetScan::extract_access_expr(Expr *expr)
 {
 	pet_expr *index;
 
-	expr->dump();
-
 	index = extract_index_expr(expr);
+	std::cerr << "extracting information from expr dumping:" << std::endl;
+	expr->dump();
+	std::cerr << "done dumping :" << std::endl;
 
 	if (pet_expr_get_type(index) == pet_expr_int)
 		return index;
@@ -1489,7 +1529,7 @@ __isl_give pet_expr *PetScan::extract_cxx_expr(Expr *op)
 
 /* Try and construct a pet_expr representing "expr".
  */
-__isl_give pet_expr *PetScan::extract_expr(Expr *expr)
+__isl_give pet_expr *PetScan::extract_expr(Expr *expr )
 {
 	switch (expr->getStmtClass()) {
 	case Stmt::UnaryOperatorClass:
@@ -1513,8 +1553,13 @@ __isl_give pet_expr *PetScan::extract_expr(Expr *expr)
 		return extract_expr(cast<ParenExpr>(expr));
 	case Stmt::ConditionalOperatorClass:
 		return extract_expr(cast<ConditionalOperator>(expr));
-	case Stmt::CallExprClass:
-		return extract_expr(cast<CallExpr>(expr));
+	case Stmt::CallExprClass:{
+		if ( treat_calls_like_access ) {
+		  return extract_access_expr(cast<CallExpr>(expr));
+		}else{
+		  return extract_expr(cast<CallExpr>(expr));
+		}
+	}
 	case Stmt::CStyleCastExprClass:
 		return extract_expr(cast<CStyleCastExpr>(expr));
 	case Stmt::CXXMemberCallExprClass:
@@ -1701,10 +1746,29 @@ __isl_give pet_expr *PetScan::extract_binary_increment(BinaryOperator *op,
 	}
 
 	expr = extract_expr(op->getRHS());
+
+	// filter non 1 increment operations
+	if ( PetScan::increment_by_one ) {
+	  if ( !isIncrementByOne( expr ) ) {
+	    unsupported_with_extra_string( op, "pet is restricted to 1 and -1 as loop increment operations" );
+	    return nullptr;
+	  }
+	}
+
+
 	expr_iv = extract_expr(lhs);
 
 	type_size = get_type_size(iv->getType(), ast_context);
 	return pet_expr_new_binary(type_size, pet_op_sub, expr, expr_iv);
+}
+
+// TODO i am not sure about negative one beeing ok for normal scop
+bool PetScan::isIncrementByOne( pet_expr* expr ) {
+  isl_val* val = pet_expr_int_get_val( expr );
+  if ( isl_val_is_one( val ) || isl_val_is_negone(val) ){
+    return true;
+  }
+  return false;
 }
 
 /* Check that op is of the form iv += cst or iv -= cst
@@ -1740,6 +1804,15 @@ __isl_give pet_expr *PetScan::extract_compound_increment(
 	}
 
 	expr = extract_expr(op->getRHS());
+
+	// filter non 1 increment operations
+	if ( PetScan::increment_by_one ) {
+	  if ( !isIncrementByOne( expr ) ){
+	    unsupported_with_extra_string( op, "pet is restricted to 1 and -1 as loop increment operations" );
+	    return nullptr;
+	  }
+	}
+
 	if (neg) {
 		int type_size;
 		type_size = get_type_size(op->getType(), ast_context);
@@ -1878,8 +1951,11 @@ __isl_give pet_tree *PetScan::extract_for(ForStmt *stmt)
 	pe_init = extract_expr(rhs);
 	if (!stmt->getCond())
 		pe_cond = pet_expr_new_int(isl_val_one(ctx));
-	else
-		pe_cond = extract_expr(stmt->getCond());
+	else{
+	  treat_calls_like_access = true;
+	  pe_cond = extract_expr(stmt->getCond());
+	  treat_calls_like_access = false;
+	}
 	
 	std::cerr << "after cond extraction" << std::endl;
 	pe_inc = extract_increment(stmt, iv);

@@ -14,7 +14,7 @@ ACLOCAL_AMFLAGS = -I m4
 
 LIB_ISL = $(ISL_LA) @ISL_LIBS@
 
-lib_LTLIBRARIES = libpet.la
+lib_LTLIBRARIES = libpet.la libpet_cxx.la
 bin_PROGRAMS = @extra_bin_programs@
 noinst_PROGRAMS = @extra_noinst_programs@ pet_codegen pet_check_code
 EXTRA_PROGRAMS = pet pet_scop_cmp
@@ -77,9 +77,60 @@ libpet_la_SOURCES = \
 	version.h \
 	version.cc \
 	initialize_pet.c \
-	pet_cxx.cc
+	pet.cc
 libpet_la_LDFLAGS = -version-info @versioninfo@ $(AM_LDFLAGS)
-libpet_la_LIBADD = -lclangParse -lclangSema \
+libpet_la_LIBADD =  -lclangParse -lclangSema -lclangFrontend -lclangDriver\
+	$(LIB_CLANG_EDIT) -lclangAnalysis \
+	-lclangAST -lclangLex -lclangBasic -lclangSerialization \
+	$(CLANG_LIBS) $(CLANG_LDFLAGS) $(LIB_ISL)
+
+libpet_cxx_la_SOURCES = \
+	aff.h \
+	aff.c \
+	array.h \
+	array.c \
+	clang.h \
+	clang.cc \
+	context.h \
+	context.c \
+	expr.h \
+	expr.c \
+	expr_access_type.h \
+	expr_arg.h \
+	expr_arg.c \
+	filter.h \
+	filter.c \
+	loc.h \
+	loc.c \
+	nest.h \
+	nest.c \
+	options.h \
+	options.c \
+	print.c \
+	print.h \
+	tree.h \
+	tree.c \
+	tree2scop.h \
+	tree2scop.c \
+	scan.h \
+	scan.cc \
+	scop.h \
+	scop.c \
+	scop_plus.h \
+	scop_plus.cc \
+	skip.h \
+	skip.c \
+	state.h \
+	summary.h \
+	summary.c \
+	value_bounds.h \
+	value_bounds.c \
+	version.h \
+	version.cc \
+	initialize_pet.c \
+	pet_cxx.cc
+libpet_cxx_la_LDFLAGS = -version-info @versioninfo@ $(AM_LDFLAGS)
+libpet_cxx_la_LIBADD =  -lclangParse -lclangSema\
 	$(LIB_CLANG_EDIT) -lclangAnalysis \
 	-lclangAST -lclangLex -lclangBasic -lclangSerialization \
 	$(CLANG_LIBS) $(CLANG_LDFLAGS) $(LIB_ISL)

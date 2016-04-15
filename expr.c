@@ -2396,7 +2396,6 @@ __isl_give pet_expr *pet_expr_op_set_type(__isl_take pet_expr *expr,
  */
 __isl_keep const char *pet_expr_call_get_name(__isl_keep pet_expr *expr)
 {
-  printf("in pet_expr_call_get_name\n");
 	if (!expr)
 		return NULL;
 	if (expr->type != pet_expr_call)
@@ -3084,13 +3083,11 @@ static __isl_give isl_pw_aff *extract_affine_from_call(
 	options = isl_ctx_peek_pet_options(ctx);
 
 	n = pet_expr_get_n_arg(expr);
-	fprintf(stderr,"number of arguments %d\n", n);
 	name = pet_expr_call_get_name(expr);
-	fprintf(stderr,"name is %s\n", name);
-	fprintf(stderr,"options is %d\n", options);
+
+
 	if (!is_affine_builtin(options->pencil, n, name)){
-		fprintf(stderr,"is not a affine buildin -> returning\n");
-		return non_affine(pet_context_get_space(pc));
+	  return non_affine(pet_context_get_space(pc));
 	}
 
 	fprintf(stderr,"minmax \n");

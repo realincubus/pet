@@ -81,6 +81,9 @@ struct PetScan {
 	 */
 	bool partial;
 
+	/* Set if increment other then by one is not allowed */
+	bool increment_by_one = true;
+
 	/* A cache of size expressions for array types as computed
 	 * by PetScan::get_array_size.
 	 */
@@ -124,6 +127,7 @@ struct PetScan {
 private:
 	void set_current_stmt(clang::Stmt *stmt);
 	bool is_current_stmt_marked_independent();
+	bool isIncrementByOne( pet_expr* expr);
 
 	struct pet_scop *scan(clang::Stmt *stmt);
 
@@ -213,6 +217,7 @@ private:
 	__isl_give pet_expr *extract_index_expr(clang::DeclRefExpr *expr);
 	__isl_give pet_expr *extract_index_expr(clang::ValueDecl *decl);
 	__isl_give pet_expr *extract_index_expr(clang::MemberExpr *expr);
+	__isl_give pet_expr *extract_index_expr(clang::CallExpr *expr);
 
 	__isl_give pet_expr *extract_index_expr(clang::CXXOperatorCallExpr *expr);
 
@@ -231,4 +236,7 @@ private:
 	void report_missing_increment(clang::Stmt *stmt);
 	void report_missing_summary_function(clang::Stmt *stmt);
 	void report_missing_summary_function_body(clang::Stmt *stmt);
+
+	bool treat_calls_like_access = false;
+
 };

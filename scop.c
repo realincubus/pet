@@ -2801,7 +2801,7 @@ __isl_give isl_union_set *pet_scop_collect_domains(struct pet_scop *scop)
 
 	domain = isl_union_set_empty(isl_set_get_space(scop->context));
 
-	printf("pet_scop_collect_domains from %d statements\n", scop->n_stmt);
+	fprintf(stderr,"pet_scop_collect_domains from %d statements\n", scop->n_stmt);
 
 	for (i = 0; i < scop->n_stmt; ++i) {
 		domain_i = isl_set_copy(scop->stmts[i]->domain);
