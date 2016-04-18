@@ -161,6 +161,10 @@ static enum pet_op_type OverloadedOperatorKind2pet_op_type(OverloadedOperatorKin
 #endif
 	case OO_Equal:
 		return pet_op_assign;
+	case OO_Less:
+		return pet_op_lt;
+	case OO_PlusPlus:
+		return pet_op_post_inc;
 #if 0
 	case BO_Add:
 		return pet_op_add;
@@ -734,6 +738,68 @@ __isl_give pet_expr *PetScan::extract_index_expr(CallExpr *call)
   return pet_expr_from_index(isl_multi_pw_aff_zero(space));
 }
 
+/* 
+ * hack to allow calls to member functions that are not easily checkable for affineness
+ */
+__isl_give pet_expr *PetScan::extract_index_expr(CXXMemberCallExpr *call)
+{
+  std::cerr << __PRETTY_FUNCTION__ << std::endl;
+  // TODO issue a warning if the function is not on of 
+  //      std::vector::size()
+  //      std::array::size() 
+  //      std::string::size()
+  //      std::string::length() ...
+
+  // get the text of how the function was called 
+  auto& SM = ast_context.getSourceManager();
+  std::string call_text = Lexer::getSourceText( 
+      CharSourceRange::getTokenRange( call->getSourceRange() ),
+      SM, 
+      LangOptions() 
+  ) ;
+
+  std::cerr << "call_text " << call_text << std::endl;
+
+  // create a decl id from this call
+  auto id = isl_id_alloc(ctx, call_text.c_str(), cast<NamedDecl>(call->getCalleeDecl()) );
+  auto space = isl_space_alloc(ctx, 0, 0, 0);
+  space = isl_space_set_tuple_id(space, isl_dim_out, id);
+
+  std::cerr << "done " << __PRETTY_FUNCTION__ << std::endl;
+  return pet_expr_from_index(isl_multi_pw_aff_zero(space));
+}
+
+/* 
+ * 
+ */
+__isl_give pet_expr *PetScan::extract_index_expr(CXXConstructExpr *construct)
+{
+  std::cerr << __PRETTY_FUNCTION__ << std::endl;
+  
+  auto n_args = construct->getNumArgs();
+  std::cerr << "n args " << n_args << std::endl;
+  // TODO 
+
+  if ( n_args != 1 ) {
+    unsupported_with_extra_string( construct, " != 1 argument to a construct expr are not implemented" );
+    return nullptr;
+  }
+  
+  return extract_index_expr( construct->getArg(0) );
+}
+
+
+/* 
+ * 
+ */
+__isl_give pet_expr *PetScan::extract_index_expr(MaterializeTemporaryExpr *temp)
+{
+  std::cerr << __PRETTY_FUNCTION__ << std::endl;
+  auto expr = temp->GetTemporaryExpr();
+
+  return extract_index_expr( expr );
+}
+
 /* Construct a pet_expr representing the index expression "expr"
  * Return NULL on error.
  *
@@ -758,6 +824,12 @@ __isl_give pet_expr *PetScan::extract_index_expr(Expr *expr)
 		return extract_index_expr(cast<CXXOperatorCallExpr>(expr));
 	case Stmt::CallExprClass:
 		return extract_index_expr(cast<CallExpr>(expr));
+	case Stmt::CXXMemberCallExprClass:
+		return extract_index_expr(cast<CXXMemberCallExpr>(expr));
+	case Stmt::CXXConstructExprClass:
+		return extract_index_expr(cast<CXXConstructExpr>(expr));
+	case Stmt::MaterializeTemporaryExprClass:
+		return extract_index_expr(cast<MaterializeTemporaryExpr>(expr));
 	default:
 		unsupported(expr);
 	}
@@ -1507,6 +1579,26 @@ __isl_give pet_expr *PetScan::extract_cxx_binary_operator(CXXOperatorCallExpr *e
 	return pet_expr_new_binary(type_size, op, lhs, rhs);
 }
 
+__isl_give pet_expr *PetScan::extract_cxx_unary_operator(CXXOperatorCallExpr *expr, OverloadedOperatorKind ook )
+{
+	std::cerr << __PRETTY_FUNCTION__ << std::endl;
+	int type_size;
+
+	// convert ook to pet representation
+	auto op = OverloadedOperatorKind2pet_op_type(ook);
+	if (op == pet_op_last) {
+	  unsupported_msg(expr,string("cannot handle this type is ") + to_string(op) );
+	  return nullptr;
+	}
+	// TODO in the case of a cxx operator call the lhs and rhs are the first and second function call arguments
+	auto arg0 = expr->getArg(0);
+
+	auto sub_expr = extract_expr(arg0);
+
+	type_size = get_type_size(expr->getType(), ast_context);
+	return pet_expr_new_unary(type_size, op, sub_expr);
+}
+
 
 /* Construct a pet_expr representing a CXXOperatorCallExpr.
  */
@@ -1516,6 +1608,9 @@ __isl_give pet_expr *PetScan::extract_cxx_expr(Expr *op)
   std::cerr << __PRETTY_FUNCTION__ << std::endl;
   auto cxx_operator = cast<CXXOperatorCallExpr>(op);
   switch( cxx_operator->getOperator() ){
+    case OO_PlusPlus:
+      return extract_cxx_unary_operator(cxx_operator, cxx_operator->getOperator());
+    case OO_Less:
     case OO_Equal:
       return extract_cxx_binary_operator(cxx_operator,cxx_operator->getOperator());
     case OO_Subscript:
@@ -1526,6 +1621,13 @@ __isl_give pet_expr *PetScan::extract_cxx_expr(Expr *op)
   return nullptr;
 }
 
+/* Construct a pet_expr representing the integer enum constant "ecd".
+ */
+__isl_give pet_expr *PetScan::extract_expr(MaterializeTemporaryExpr *temp)
+{
+  auto expr = temp->GetTemporaryExpr();
+  return extract_expr( expr );
+}
 
 /* Try and construct a pet_expr representing "expr".
  */
@@ -1555,7 +1657,7 @@ __isl_give pet_expr *PetScan::extract_expr(Expr *expr )
 		return extract_expr(cast<ConditionalOperator>(expr));
 	case Stmt::CallExprClass:{
 		if ( treat_calls_like_access ) {
-		  return extract_access_expr(cast<CallExpr>(expr));
+		  return extract_access_expr(expr);
 		}else{
 		  return extract_expr(cast<CallExpr>(expr));
 		}
@@ -1563,7 +1665,20 @@ __isl_give pet_expr *PetScan::extract_expr(Expr *expr )
 	case Stmt::CStyleCastExprClass:
 		return extract_expr(cast<CStyleCastExpr>(expr));
 	case Stmt::CXXMemberCallExprClass:
-		return extract_expr(cast<CXXMemberCallExpr>(expr));
+		if ( treat_calls_like_access ) {
+		  return extract_access_expr( expr );
+		}else{
+		  return extract_expr(cast<CXXMemberCallExpr>(expr));
+		}
+	case Stmt::CXXConstructExprClass:
+		if ( treat_calls_like_access ) {
+		  return extract_access_expr( expr );
+		}else{
+		  assert( 0 && "not implemented " );
+		  return nullptr;
+		}
+	case Stmt::MaterializeTemporaryExprClass:
+		return extract_expr( cast<MaterializeTemporaryExpr>( expr ) );
 	default:
 		unsupported_msg(expr, string(expr->getStmtClassName()));
 	}
@@ -1845,6 +1960,15 @@ __isl_give pet_expr *PetScan::extract_increment(clang::ForStmt *stmt,
 	if (inc->getStmtClass() == Stmt::BinaryOperatorClass)
 		return extract_binary_increment(cast<BinaryOperator>(inc), iv);
 
+	inc->dumpColor();
+
+#if 1
+	if (inc->getStmtClass() == Stmt::CXXOperatorCallExprClass ) {
+	  // TODO issue a warning to warn for side effects
+	  return extract_cxx_expr( cast<Expr>(inc) );
+	}
+#endif
+
 	unsupported(inc);
 	std::cerr << "done " <<  __PRETTY_FUNCTION__ << std::endl;
 	return NULL;
@@ -1948,7 +2072,11 @@ __isl_give pet_tree *PetScan::extract_for(ForStmt *stmt)
 	pe_iv = extract_access_expr(iv);
 	std::cerr << "done pe_iv extraction" << std::endl;
 	pe_iv = mark_write(pe_iv);
+
+	treat_calls_like_access = true;
 	pe_init = extract_expr(rhs);
+	treat_calls_like_access = false;
+
 	if (!stmt->getCond())
 		pe_cond = pet_expr_new_int(isl_val_one(ctx));
 	else{

@@ -202,7 +202,9 @@ private:
 	__isl_give pet_expr *extract_expr(clang::CStyleCastExpr *expr);
 	__isl_give pet_expr *extract_cxx_expr(clang::Expr *expr);
 	__isl_give pet_expr *extract_cxx_binary_operator(clang::CXXOperatorCallExpr *expr, clang::OverloadedOperatorKind ook);
+	__isl_give pet_expr *extract_cxx_unary_operator(clang::CXXOperatorCallExpr *expr, clang::OverloadedOperatorKind ook );
 
+	__isl_give pet_expr *extract_expr(clang::MaterializeTemporaryExpr *expr);
 	__isl_give pet_expr *extract_expr(clang::CXXMemberCallExpr *expr);
 
 	__isl_give pet_expr *extract_access_expr(clang::QualType qt,
@@ -218,6 +220,9 @@ private:
 	__isl_give pet_expr *extract_index_expr(clang::ValueDecl *decl);
 	__isl_give pet_expr *extract_index_expr(clang::MemberExpr *expr);
 	__isl_give pet_expr *extract_index_expr(clang::CallExpr *expr);
+	__isl_give pet_expr *extract_index_expr(clang::CXXMemberCallExpr *expr);
+	__isl_give pet_expr *extract_index_expr(clang::CXXConstructExpr *expr);
+	__isl_give pet_expr *extract_index_expr(clang::MaterializeTemporaryExpr *expr);
 
 	__isl_give pet_expr *extract_index_expr(clang::CXXOperatorCallExpr *expr);
 
