@@ -6,6 +6,8 @@
 #include <clang/Sema/Sema.h>
 #include <isl/ctx.h>
 
+struct pet_scop;
+
 
 struct PetASTConsumer;
 struct ScopLocList;
