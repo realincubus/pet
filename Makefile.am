@@ -176,11 +176,9 @@ gitversion.h: @GIT_HEAD@
 install-data-local:
 	@test -z "$(DESTDIR)$(libdir)/pet" || $(mkdir_p) "$(DESTDIR)$(libdir)/pet"
 	$(INSTALL_DATA) "$(top_srcdir)/cmake/pet-config.cmake" "$(DESTDIR)$(libdir)/pet/"
-	@test -z "$(DESTDIR)$(libdir)/isl15" || $(mkdir_p) "$(DESTDIR)$(libdir)/isl15"
-	$(INSTALL_DATA) "$(top_srcdir)/cmake/isl15-config.cmake" "$(DESTDIR)$(libdir)/isl15/"
 	
 uninstall-local:
-	rm -f "$(DESTDIR)$(libdir)/isl15/isl15-config.cmake"
+	rm -f "$(DESTDIR)$(libdir)/pet/pet-config.cmake"
 
 
 
