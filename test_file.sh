@@ -1,18 +1,20 @@
-#!/bin/bash
+#!/bin/bash -xe
 
-FILE=$1
-OPTS=$2
+PET_CMD=$1
+PET_SCOP_CMP_CMD=$2
+FILE=$3
+OPTS=$4
 
 EXEEXT=
 srcdir=.
 
 echo $FILE;
-./pet$EXEEXT $OPTS $FILE  > test.scop 
+$PET_CMD$EXEEXT $OPTS $FILE  > test.scop 
 if [ $? -ne 0 ]; then
   echo "error in extraction of $FILE" 
   exit -1
 fi
-./pet_scop_cmp$EXEEXT test.scop ${FILE%.c}.scop
+$PET_SCOP_CMP_CMD$EXEEXT test.scop ${FILE%.c}.scop
 if [ $? -ne 0 ]; then
   echo "error in comparison of $FILE" 
   exit -1
