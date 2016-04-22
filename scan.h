@@ -236,6 +236,8 @@ private:
 	void report(clang::Stmt *stmt, unsigned id, std::string debug_information = "" );
 	void unsupported(clang::Stmt *stmt);
 	void unsupported_with_extra_string(clang::Stmt *stmt, std::string extra );
+	void warning_assume_with_extra_string(clang::Stmt *stmt, std::string extra );
+	void note_understood_with_extra_string(clang::Stmt *stmt, std::string extra);
 	void report_unsupported_statement_type(clang::Stmt *stmt);
 	void report_prototype_required(clang::Stmt *stmt);
 	void report_missing_increment(clang::Stmt *stmt);
@@ -243,5 +245,7 @@ private:
 	void report_missing_summary_function_body(clang::Stmt *stmt);
 
 	bool treat_calls_like_access = false;
+	bool isPureOrConst( clang::FunctionDecl* fdecl );
+	void checkPureOrConst( clang::CallExpr* call );
 
 };

@@ -328,6 +328,34 @@ void PetScan::unsupported_with_extra_string(Stmt *stmt, std::string extra)
 #define unsupported_msg( x, y ) unsupported_with_extra_string( (x), string(__FILE__) + string(" ") + to_string(__LINE__) + string(" ") + y )
 //#define unsupported_msg( x, y ) unsupported( (x) )
 
+
+/* Called if we found somthing that might be a problem
+ * We simply assume the best
+ */
+void PetScan::warning_assume_with_extra_string(Stmt *stmt, std::string extra)
+{
+	DiagnosticsEngine &diag = ast_context.getDiagnostics();
+	unsigned id = diag.getCustomDiagID(DiagnosticsEngine::Warning,
+					   "Assumption by Pet: %0" );
+	report(stmt, id, extra );
+}
+
+#define warning_assume( x, y ) warning_assume_with_extra_string( (x), string(__FILE__) + string(" ") + to_string(__LINE__) + string(" ") + y )
+
+/* Called if we found somthing the user might be interested in
+ */
+void PetScan::note_understood_with_extra_string(Stmt *stmt, std::string extra)
+{
+	DiagnosticsEngine &diag = ast_context.getDiagnostics();
+	unsigned id = diag.getCustomDiagID(DiagnosticsEngine::Warning,
+					   "Understood by Pet: %0" );
+	report(stmt, id, extra );
+}
+
+// TODO since this is not printed i need to use the warning level to get some information
+//      when ycm starts to print notes swtich to DiasgnosticsEnginine::Note
+#define note_understood( x, y ) note_understood_with_extra_string( (x), string(__FILE__) + string(" ") + to_string(__LINE__) + string(" ") + y )
+
 /* Report an unsupported statement type, unless autodetect is set.
  */
 void PetScan::report_unsupported_statement_type(Stmt *stmt)
@@ -711,13 +739,56 @@ __isl_give pet_expr *PetScan::extract_index_expr(ValueDecl *decl)
 	return pet_expr_from_index(isl_multi_pw_aff_zero(space));
 }
 
+
+bool PetScan::isPureOrConst( FunctionDecl* fdecl ){
+  for( auto i = fdecl->attr_begin(), e = fdecl->attr_end(); i != e; ++i ){
+      if ( isa<ConstAttr>(*i) ) return true;
+      if ( isa<PureAttr>(*i) ) return true;
+  }  
+  return false;
+}
+
+void PetScan::checkPureOrConst( CallExpr* call ) {
+  auto is_decl_pure_or_const = isPureOrConst( call->getDirectCallee() );
+  if ( !is_decl_pure_or_const ) {
+    warning_assume( call, 
+	"this function always returns the same value while the loop is executed. "
+        "mark as const or pure if possible" 
+    );
+    return;
+  }else{
+    note_understood( call, "function call is a call to a const/pure function" );
+  }
+  
+  std::vector<int> args_non_const;
+  for (int i = 0; i < call->getNumArgs(); ++i){
+    auto arg = call->getArg(i);
+    if ( isa<IntegerLiteral>( arg ) ) continue;
+    if ( isa<FloatingLiteral>( arg ) ) continue;
+    // TODO allow more stuff like constexpr or const 
+    args_non_const.push_back( i );
+  }
+
+  // issue a warning if the arguments to the function are not const 
+  if ( args_non_const.size() !=  0 ) {
+    std::string message = "this function is marked const or pure but the arguments ";
+    for( auto& arg_id : args_non_const ){
+      message += " " + to_string(arg_id);
+    }
+    message += " may be variable";
+    warning_assume( call, message.c_str() ); 
+  }
+}
+
 /* 
- * hack to allow calls to functions that are not easily checkable for affineness
+ * hack to allow calls to functions
  */
 __isl_give pet_expr *PetScan::extract_index_expr(CallExpr *call)
 {
   std::cerr << __PRETTY_FUNCTION__ << std::endl;
-  // TODO dont do this if the function is an affine buildin 
+  // TODO dont emit the warning if the function is pure or const and has no arguments or if the arguments are
+  //      themselfs non changing
+  checkPureOrConst( call );
 
   // get the text of how the function was called 
   auto& SM = ast_context.getSourceManager();
@@ -739,7 +810,7 @@ __isl_give pet_expr *PetScan::extract_index_expr(CallExpr *call)
 }
 
 /* 
- * hack to allow calls to member functions that are not easily checkable for affineness
+ * hack to allow calls to member functions 
  */
 __isl_give pet_expr *PetScan::extract_index_expr(CXXMemberCallExpr *call)
 {
@@ -1862,6 +1933,7 @@ __isl_give pet_expr *PetScan::extract_binary_increment(BinaryOperator *op,
 
 	expr = extract_expr(op->getRHS());
 
+#if 0
 	// filter non 1 increment operations
 	if ( PetScan::increment_by_one ) {
 	  if ( !isIncrementByOne( expr ) ) {
@@ -1869,7 +1941,7 @@ __isl_give pet_expr *PetScan::extract_binary_increment(BinaryOperator *op,
 	    return nullptr;
 	  }
 	}
-
+#endif
 
 	expr_iv = extract_expr(lhs);
 
@@ -1920,6 +1992,7 @@ __isl_give pet_expr *PetScan::extract_compound_increment(
 
 	expr = extract_expr(op->getRHS());
 
+#if 0
 	// filter non 1 increment operations
 	if ( PetScan::increment_by_one ) {
 	  if ( !isIncrementByOne( expr ) ){
@@ -1927,6 +2000,7 @@ __isl_give pet_expr *PetScan::extract_compound_increment(
 	    return nullptr;
 	  }
 	}
+#endif
 
 	if (neg) {
 		int type_size;
@@ -1960,9 +2034,9 @@ __isl_give pet_expr *PetScan::extract_increment(clang::ForStmt *stmt,
 	if (inc->getStmtClass() == Stmt::BinaryOperatorClass)
 		return extract_binary_increment(cast<BinaryOperator>(inc), iv);
 
+#if 0
 	inc->dumpColor();
 
-#if 1
 	if (inc->getStmtClass() == Stmt::CXXOperatorCallExprClass ) {
 	  // TODO issue a warning to warn for side effects
 	  return extract_cxx_expr( cast<Expr>(inc) );
@@ -2073,16 +2147,16 @@ __isl_give pet_tree *PetScan::extract_for(ForStmt *stmt)
 	std::cerr << "done pe_iv extraction" << std::endl;
 	pe_iv = mark_write(pe_iv);
 
-	treat_calls_like_access = true;
+	//treat_calls_like_access = true;
 	pe_init = extract_expr(rhs);
-	treat_calls_like_access = false;
+	//treat_calls_like_access = false;
 
 	if (!stmt->getCond())
 		pe_cond = pet_expr_new_int(isl_val_one(ctx));
 	else{
-	  treat_calls_like_access = true;
+	  //treat_calls_like_access = true;
 	  pe_cond = extract_expr(stmt->getCond());
-	  treat_calls_like_access = false;
+	  //treat_calls_like_access = false;
 	}
 	
 	std::cerr << "after cond extraction" << std::endl;
