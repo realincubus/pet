@@ -649,7 +649,7 @@ struct PetASTConsumer : public ASTConsumer {
 	/* For each explicitly marked scop (using pragmas),
 	 * extract the scop and call "fn" on it if it is inside "fd".
 	 */
-	void scan_scops(FunctionDecl *fd) {
+	void scan_scops(FunctionDecl *fd, std::unique_ptr<std::map<std::string,std::string>>& call_texts ) {
 		unsigned start, end;
 		vector<ScopLoc>::iterator it;
 		isl_union_map *vb = value_bounds;
@@ -674,6 +674,9 @@ struct PetASTConsumer : public ASTConsumer {
 				    isl_union_map_copy(vb), independent);
 			scop = ps.scan(fd);
 			call_fn(scop);
+			if ( scop ) {
+			  call_texts.reset(ps.name_to_text.release());
+			}
 		}
 	}
 
@@ -792,6 +795,7 @@ void Pet::pet_scop_extract_from_clang_ast(
 				      clang::ASTContext* clang_ctx,
 				      clang::ForStmt* stmt,
 				      clang::FunctionDecl* fd,
+				      std::unique_ptr<std::map<std::string,std::string>>& call_texts,
 				      pet_scop** _scop
 				    ){
 
@@ -834,7 +838,7 @@ void Pet::pet_scop_extract_from_clang_ast(
   }
 #endif
   
-  consumer->scan_scops( fd );
+  consumer->scan_scops( fd, call_texts );
 
 #if 0
   std::cout << "before htd" << endl;

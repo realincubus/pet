@@ -334,10 +334,14 @@ void PetScan::unsupported_with_extra_string(Stmt *stmt, std::string extra)
  */
 void PetScan::warning_assume_with_extra_string(Stmt *stmt, std::string extra)
 {
-	DiagnosticsEngine &diag = ast_context.getDiagnostics();
-	unsigned id = diag.getCustomDiagID(DiagnosticsEngine::Warning,
-					   "Assumption by Pet: %0" );
-	report(stmt, id, extra );
+  std::cerr << __PRETTY_FUNCTION__ << std::endl;
+  DiagnosticsEngine &diag = ast_context.getDiagnostics();
+  std::cerr << "diag id" << std::endl;
+  unsigned id = diag.getCustomDiagID(DiagnosticsEngine::Warning,
+				     "Assumption by Pet: %0" );
+  std::cerr << "reporting to " << id << " " << extra << " at " << stmt << std::endl;
+  report(stmt, id, extra );
+  std::cerr << "done reporting" << std::endl;
 }
 
 #define warning_assume( x, y ) warning_assume_with_extra_string( (x), string(__FILE__) + string(" ") + to_string(__LINE__) + string(" ") + y )
@@ -741,23 +745,28 @@ __isl_give pet_expr *PetScan::extract_index_expr(ValueDecl *decl)
 
 
 bool PetScan::isPureOrConst( FunctionDecl* fdecl ){
+  std::cerr << __PRETTY_FUNCTION__ << std::endl;
   for( auto i = fdecl->attr_begin(), e = fdecl->attr_end(); i != e; ++i ){
       if ( isa<ConstAttr>(*i) ) return true;
       if ( isa<PureAttr>(*i) ) return true;
   }  
+  std::cerr << "done " << __PRETTY_FUNCTION__ << std::endl;
   return false;
 }
 
+// TODO enable the warnings call is not a stmt and this way the reporting function might fail
 void PetScan::checkPureOrConst( CallExpr* call ) {
+  std::cerr << __PRETTY_FUNCTION__ << std::endl;
+
   auto is_decl_pure_or_const = isPureOrConst( call->getDirectCallee() );
   if ( !is_decl_pure_or_const ) {
-    warning_assume( call, 
-	"this function always returns the same value while the loop is executed. "
-        "mark as const or pure if possible" 
-    );
+    std::cerr << __PRETTY_FUNCTION__ << " writing warning" << std::endl;
+    //warning_assume( call, 
+    //	"this function always returns the same value while the loop is executed. mark as const or pure if possible" 
+    //);
     return;
   }else{
-    note_understood( call, "function call is a call to a const/pure function" );
+    //note_understood( call, "function call is a call to a const/pure function" );
   }
   
   std::vector<int> args_non_const;
@@ -776,12 +785,19 @@ void PetScan::checkPureOrConst( CallExpr* call ) {
       message += " " + to_string(arg_id);
     }
     message += " may be variable";
-    warning_assume( call, message.c_str() ); 
+    //warning_assume( call, message.c_str() ); 
   }
+  std::cerr << __PRETTY_FUNCTION__ << std::endl;
 }
 
 /* 
- * hack to allow calls to functions
+ * hack to allow calls to function ins conditions without loosing the affineness constraint
+ *
+ * simply assume that this function will always return the same value.
+ * this way its the same thing like a parameter
+ * since i can not put the text of the function call into the variable ( would mess up the isl representation )
+ * i will put a placeholder in it which needs to be translated back to the coresponding function call
+ *
  */
 __isl_give pet_expr *PetScan::extract_index_expr(CallExpr *call)
 {
@@ -790,6 +806,7 @@ __isl_give pet_expr *PetScan::extract_index_expr(CallExpr *call)
   //      themselfs non changing
   checkPureOrConst( call );
 
+#if 1
   // get the text of how the function was called 
   auto& SM = ast_context.getSourceManager();
   std::string call_text = Lexer::getSourceText( 
@@ -799,11 +816,19 @@ __isl_give pet_expr *PetScan::extract_index_expr(CallExpr *call)
   ) ;
 
   std::cerr << "call_text " << call_text << std::endl;
+#endif
+
+  // TODO create a map between calls and their placeholder
+  
+  string placeholder = "C_" + to_string(call_ctr++);
 
   // create a decl id from this call
-  auto id = isl_id_alloc(ctx, call_text.c_str(), cast<NamedDecl>(call->getCalleeDecl()) );
+  auto id = isl_id_alloc(ctx,  placeholder.c_str(), cast<NamedDecl>(call->getCalleeDecl()) );
   auto space = isl_space_alloc(ctx, 0, 0, 0);
   space = isl_space_set_tuple_id(space, isl_dim_out, id);
+
+  // add a placeholder entry to the map
+  (*name_to_text)[placeholder] = call_text;
 
   std::cerr << "done " << __PRETTY_FUNCTION__ << std::endl;
   return pet_expr_from_index(isl_multi_pw_aff_zero(space));
@@ -821,6 +846,7 @@ __isl_give pet_expr *PetScan::extract_index_expr(CXXMemberCallExpr *call)
   //      std::string::size()
   //      std::string::length() ...
 
+#if 1
   // get the text of how the function was called 
   auto& SM = ast_context.getSourceManager();
   std::string call_text = Lexer::getSourceText( 
@@ -830,11 +856,17 @@ __isl_give pet_expr *PetScan::extract_index_expr(CXXMemberCallExpr *call)
   ) ;
 
   std::cerr << "call_text " << call_text << std::endl;
+#endif
+
+  string placeholder = "C_" + to_string(call_ctr++);
 
   // create a decl id from this call
-  auto id = isl_id_alloc(ctx, call_text.c_str(), cast<NamedDecl>(call->getCalleeDecl()) );
+  auto id = isl_id_alloc(ctx, placeholder.c_str(), cast<NamedDecl>(call->getCalleeDecl()) );
   auto space = isl_space_alloc(ctx, 0, 0, 0);
   space = isl_space_set_tuple_id(space, isl_dim_out, id);
+
+  // add a placeholder entry to the map
+  (*name_to_text)[placeholder] = call_text;
 
   std::cerr << "done " << __PRETTY_FUNCTION__ << std::endl;
   return pet_expr_from_index(isl_multi_pw_aff_zero(space));
@@ -1437,6 +1469,29 @@ __isl_give pet_expr *PetScan::extract_expr(CallExpr *expr)
 	name = fd->getDeclName().getAsString();
 	n_arg = expr->getNumArgs();
 
+
+#if 1
+	// TODO get the arguments of the function 
+	// and correct them to their c coresponding function
+	// otherwise is_affine_builtin will not detect them 
+	if ( name == "floor" ){
+	  name = "floord";
+	}
+
+	// TODO if the name is not known to be a buildin continue with extract_access_expr
+	//      if treat_calls_like_access is set
+	if ( ! ( 
+	      is_affine_builtin( 0, n_arg, name.c_str() ) || 
+	      is_affine_builtin( 1, n_arg, name.c_str() ) 
+	      ) 
+	   ){
+	  if ( treat_calls_like_access ) {
+	    std::cerr << "is not a affine built-in -> extracting access" << std::endl;
+	    return extract_access_expr( expr );
+	  }
+	}
+#endif
+
 	if (options->pencil && n_arg == 1 && name == "__pencil_assume")
 		return extract_assume(expr->getArg(0));
 	is_kill = options->pencil && name == "__pencil_kill";
@@ -1727,11 +1782,11 @@ __isl_give pet_expr *PetScan::extract_expr(Expr *expr )
 	case Stmt::ConditionalOperatorClass:
 		return extract_expr(cast<ConditionalOperator>(expr));
 	case Stmt::CallExprClass:{
-		if ( treat_calls_like_access ) {
-		  return extract_access_expr(expr);
-		}else{
+		//if ( treat_calls_like_access ) {
+		  //return extract_access_expr(expr);
+		//}else{
 		  return extract_expr(cast<CallExpr>(expr));
-		}
+		//}
 	}
 	case Stmt::CStyleCastExprClass:
 		return extract_expr(cast<CStyleCastExpr>(expr));
@@ -2154,9 +2209,9 @@ __isl_give pet_tree *PetScan::extract_for(ForStmt *stmt)
 	if (!stmt->getCond())
 		pe_cond = pet_expr_new_int(isl_val_one(ctx));
 	else{
-	  //treat_calls_like_access = true;
+	  treat_calls_like_access = true;
 	  pe_cond = extract_expr(stmt->getCond());
-	  //treat_calls_like_access = false;
+	  treat_calls_like_access = false;
 	}
 	
 	std::cerr << "after cond extraction" << std::endl;

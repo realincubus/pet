@@ -106,6 +106,9 @@ struct PetScan {
 	/* Information about the independent pragmas in the source code. */
 	std::vector<Independent> &independent;
 
+	unsigned int call_ctr = 0;
+	std::unique_ptr<std::map<std::string, std::string>> name_to_text;
+
 	PetScan(clang::ASTContext &ast_context, ScopLoc &loc,
 		pet_options *options, __isl_take isl_union_map *value_bounds,
 		std::vector<Independent> &independent) :
@@ -113,7 +116,11 @@ struct PetScan {
 		ast_context(ast_context), loc(loc),
 		options(options), value_bounds(value_bounds),
 		partial(false), last_line(0), current_line(0),
-		independent(independent) { }
+		independent(independent) { 
+	    
+	  name_to_text.reset( new std::map<std::string, std::string>() );
+
+	}
 
 	~PetScan();
 

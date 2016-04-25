@@ -3025,7 +3025,7 @@ static const char *min_max_builtins[] = {
  * builtin function for which we can construct an affine expression?
  * pencil specific builtins are only recognized if "pencil" is set.
  */
-static int is_affine_builtin(int pencil, int n_args, const char *name)
+int is_affine_builtin(int pencil, int n_args, const char *name)
 {
 	fprintf(stderr,"int is affine builtin %s\n", name);
 	int i;

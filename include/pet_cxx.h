@@ -29,6 +29,7 @@ class Pet {
       clang::ASTContext* context,
       clang::ForStmt* stmt,
       clang::FunctionDecl* fd,
+      std::unique_ptr<std::map<std::string,std::string>>& call_texts,
       pet_scop** _scop
     );
 

@@ -1222,6 +1222,7 @@ static struct pet_scop *scop_from_non_affine_for(__isl_keep pet_tree *tree,
 	__isl_keep pet_context *init_pc, __isl_take pet_context *pc,
 	struct pet_state *state)
 {
+  fprintf(stderr, "%s\n",__PRETTY_FUNCTION__);
 	int declared;
 	isl_id *iv;
 	pet_expr *expr_iv, *init, *inc;
@@ -1534,6 +1535,7 @@ static struct pet_scop *scop_from_affine_for(__isl_keep pet_tree *tree,
 	__isl_take isl_val *inc, __isl_take pet_context *pc,
 	struct pet_state *state)
 {
+  fprintf(stderr, "%s\n",__PRETTY_FUNCTION__);
 	isl_set *domain;
 	isl_multi_aff *sched;
 	isl_set *cond = NULL;
@@ -1562,6 +1564,11 @@ static struct pet_scop *scop_from_affine_for(__isl_keep pet_tree *tree,
 	pos = pet_context_dim(pc) - 1;
 
 	domain = pet_context_get_domain(pc);
+
+	fprintf(stderr, "domain 1:\n");
+	isl_set_dump( domain );
+	fprintf(stderr, "done domain\n");
+
 	cond_expr = pet_expr_copy(tree->u.l.cond);
 	cond_expr = pet_context_evaluate_expr(pc, cond_expr);
 	pc_nested = pet_context_copy(pc);
@@ -1574,15 +1581,34 @@ static struct pet_scop *scop_from_affine_for(__isl_keep pet_tree *tree,
 
 	is_unsigned = pet_expr_get_type_size(tree->u.l.iv) > 0;
 
+	fprintf(stderr, "pa is %d\n", pa);
 	is_non_affine = isl_pw_aff_involves_nan(pa) ||
 			!is_nested_allowed(pa, tree->u.l.body);
 	if (is_non_affine)
 		pa = isl_pw_aff_free(pa);
 
+	fprintf(stderr, "is non affine ? %d\n", is_non_affine);
+
 	valid_cond = isl_pw_aff_domain(isl_pw_aff_copy(pa));
+
+	fprintf(stderr, "is valid cond ? %d\n", valid_cond);
 	cond = isl_pw_aff_non_zero_set(pa);
+
+	fprintf(stderr, "print cond -1 \n");
+	isl_set_dump( cond );
+	fprintf(stderr, "done print cond\n");
+
 	if (is_non_affine)
 		cond = isl_set_universe(isl_set_get_space(domain));
+
+
+	fprintf(stderr, "print cond 0 \n");
+	isl_set_dump( cond );
+	fprintf(stderr, "done print cond\n");
+
+	fprintf(stderr, "domain 2:\n");
+	isl_set_dump( domain );
+	fprintf(stderr, "done domain\n");
 
 	valid_cond = isl_set_coalesce(valid_cond);
 	is_one = isl_val_is_one(inc) || isl_val_is_negone(inc);
@@ -1614,6 +1640,17 @@ static struct pet_scop *scop_from_affine_for(__isl_keep pet_tree *tree,
 		domain = isl_set_intersect(domain, strided);
 	}
 
+
+	fprintf(stderr, "domain 3:\n");
+	isl_set_dump( domain );
+	fprintf(stderr, "done domain\n");
+
+
+	fprintf(stderr, "print cond 1 \n");
+	isl_set_dump( cond );
+	fprintf(stderr, "done print cond\n");
+
+	fprintf(stderr, "is virtual %d\n", is_virtual);
 	if (is_virtual) {
 		isl_multi_aff *wrap;
 		wrap = compute_wrapping(isl_set_get_space(cond), tree->u.l.iv);
@@ -1624,7 +1661,15 @@ static struct pet_scop *scop_from_affine_for(__isl_keep pet_tree *tree,
 		valid_cond = isl_set_apply(valid_cond, isl_map_copy(rev_wrap));
 		valid_inc = isl_set_apply(valid_inc, isl_map_copy(rev_wrap));
 	}
+
+
+	fprintf(stderr, "print cond 2\n");
+	isl_set_dump( cond );
+	fprintf(stderr, "done print cond\n");
+
 	is_simple = is_simple_bound(cond, inc);
+	fprintf(stderr, "is simple bound %d\n",is_simple_bound);
+
 	if (!is_simple) {
 		cond = isl_set_gist(cond, isl_set_copy(domain));
 		is_simple = is_simple_bound(cond, inc);
@@ -1633,10 +1678,21 @@ static struct pet_scop *scop_from_affine_for(__isl_keep pet_tree *tree,
 		cond = valid_for_each_iteration(cond,
 				    isl_set_copy(domain), isl_val_copy(inc));
 	cond = isl_set_align_params(cond, isl_set_get_space(domain));
+
+
+	fprintf(stderr, "print cond\n");
+	isl_set_dump( cond );
+	fprintf(stderr, "done print cond\n");
+
 	domain = isl_set_intersect(domain, cond);
 	sched = map_to_last(pc, state->n_loop++, tree->label);
 	if (isl_val_is_neg(inc))
 		sched = isl_multi_aff_neg(sched);
+
+
+	fprintf(stderr, "domain 4:\n");
+	isl_set_dump( domain );
+	fprintf(stderr, "done domain\n");
 
 	valid_cond_next = valid_on_next(valid_cond, isl_set_copy(domain),
 					isl_val_copy(inc));
@@ -1649,6 +1705,7 @@ static struct pet_scop *scop_from_affine_for(__isl_keep pet_tree *tree,
 		isl_multi_pw_aff *test_index;
 		space = isl_set_get_space(domain);
 		test_index = pet_create_test_index(space, state->n_test++);
+		// TODO the loc of the tree might be the wrong thing here
 		scop_cond = scop_from_non_affine_condition(
 				pet_expr_copy(tree->u.l.cond), state->n_stmt++,
 				isl_multi_pw_aff_copy(test_index),
@@ -1658,7 +1715,11 @@ static struct pet_scop *scop_from_affine_for(__isl_keep pet_tree *tree,
 		scop_cond = pet_scop_add_boolean_array(scop_cond,
 				isl_set_copy(domain), test_index,
 				state->int_size);
+		fprintf(stderr, "print the scop_cond\n");
+		pet_scop_dump( scop_cond );
+		fprintf(stderr, "done print the scop_cond\n");
 	}
+
 
 	scop = scop_from_tree(tree->u.l.body, pc, state);
 	has_affine_break = scop &&
@@ -1683,6 +1744,22 @@ static struct pet_scop *scop_from_affine_for(__isl_keep pet_tree *tree,
 	if (has_var_break)
 		scop = scop_add_break(scop, id_break_test, isl_set_copy(domain),
 					isl_val_copy(inc));
+  
+	// TODO at this point the body scop is done
+	//      add the condition restrictions to it 
+	//      as if it was a parameter
+	
+	fprintf(stderr, "domain:\n");
+	isl_set_dump( domain );
+	fprintf(stderr, "done domain\n");
+
+	//scop_add_if ( ); ...	
+
+
+	fprintf(stderr, "print the scop\n");
+	pet_scop_dump( scop );
+	fprintf(stderr, "done print the scop\n");
+
 	if (is_non_affine)
 		scop = scop_add_while(scop_cond, scop, id_test,
 					isl_set_copy(domain),
@@ -1690,7 +1767,18 @@ static struct pet_scop *scop_from_affine_for(__isl_keep pet_tree *tree,
 	else
 		scop = set_independence(scop, tree, domain, isl_val_sgn(inc),
 					pc, state);
+
+
+	fprintf(stderr, "print the merged scop\n");
+	pet_scop_dump( scop );
+	fprintf(stderr, "done print the merged scop\n");
+
 	scop = pet_scop_embed(scop, domain, sched);
+
+	fprintf(stderr, "print the embedded scop\n");
+	pet_scop_dump( scop );
+	fprintf(stderr, "done print the embedded scop\n");
+
 	if (is_non_affine) {
 		isl_set_free(valid_inc);
 	} else {
@@ -1704,6 +1792,10 @@ static struct pet_scop *scop_from_affine_for(__isl_keep pet_tree *tree,
 
 	valid_init = isl_set_project_out(valid_init, isl_dim_set, pos, 1);
 	scop = pet_scop_restrict_context(scop, valid_init);
+
+	fprintf(stderr, "print the restricted scop\n");
+	pet_scop_dump( scop );
+	fprintf(stderr, "done print the restricted scop\n");
 
 	pet_context_free(pc);
 	return scop;
@@ -1731,6 +1823,7 @@ static struct pet_scop *scop_from_affine_for(__isl_keep pet_tree *tree,
 static struct pet_scop *scop_from_for(__isl_keep pet_tree *tree,
 	__isl_keep pet_context *init_pc, struct pet_state *state)
 {
+  fprintf(stderr, "%s\n",__PRETTY_FUNCTION__);
 	isl_id *iv;
 	isl_val *inc;
 	isl_pw_aff *pa_inc, *init_val;
