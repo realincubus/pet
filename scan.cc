@@ -293,9 +293,13 @@ void PetScan::report(Stmt *stmt, unsigned id, std::string debug_information )
 	if (options->autodetect)
 		return;
 
+	std::cerr << "in " << __PRETTY_FUNCTION__ << std::endl;
 	SourceLocation loc = stmt->getLocStart();
+	std::cerr << "got loc " << __PRETTY_FUNCTION__ << std::endl;
 	DiagnosticsEngine &diag = ast_context.getDiagnostics();
+	std::cerr << "got diag engine " << __PRETTY_FUNCTION__ << std::endl;
 	DiagnosticBuilder B = diag.Report(loc, id) << debug_information << stmt->getSourceRange() ;
+	std::cerr << "done reporting " << __PRETTY_FUNCTION__ << std::endl;
 }
 
 /* Called if we found something we (currently) cannot handle.
@@ -754,19 +758,17 @@ bool PetScan::isPureOrConst( FunctionDecl* fdecl ){
   return false;
 }
 
-// TODO enable the warnings call is not a stmt and this way the reporting function might fail
 void PetScan::checkPureOrConst( CallExpr* call ) {
   std::cerr << __PRETTY_FUNCTION__ << std::endl;
 
   auto is_decl_pure_or_const = isPureOrConst( call->getDirectCallee() );
   if ( !is_decl_pure_or_const ) {
     std::cerr << __PRETTY_FUNCTION__ << " writing warning" << std::endl;
-    //warning_assume( call, 
-    //	"this function always returns the same value while the loop is executed. mark as const or pure if possible" 
-    //);
+    //warning_assume( call, "this function always returns the same value while the loop is executed. mark as const or pure if possible" );
     return;
   }else{
-    //note_understood( call, "function call is a call to a const/pure function" );
+    std::cerr << __PRETTY_FUNCTION__ << " writing note" << std::endl;
+    note_understood( call, "function call is a call to a const/pure function" );
   }
   
   std::vector<int> args_non_const;
@@ -785,7 +787,7 @@ void PetScan::checkPureOrConst( CallExpr* call ) {
       message += " " + to_string(arg_id);
     }
     message += " may be variable";
-    //warning_assume( call, message.c_str() ); 
+    warning_assume( call, message.c_str() ); 
   }
   std::cerr << __PRETTY_FUNCTION__ << std::endl;
 }
@@ -1988,7 +1990,7 @@ __isl_give pet_expr *PetScan::extract_binary_increment(BinaryOperator *op,
 
 	expr = extract_expr(op->getRHS());
 
-#if 0
+#if 1
 	// filter non 1 increment operations
 	if ( PetScan::increment_by_one ) {
 	  if ( !isIncrementByOne( expr ) ) {
@@ -2047,7 +2049,7 @@ __isl_give pet_expr *PetScan::extract_compound_increment(
 
 	expr = extract_expr(op->getRHS());
 
-#if 0
+#if 1
 	// filter non 1 increment operations
 	if ( PetScan::increment_by_one ) {
 	  if ( !isIncrementByOne( expr ) ){
@@ -2089,7 +2091,7 @@ __isl_give pet_expr *PetScan::extract_increment(clang::ForStmt *stmt,
 	if (inc->getStmtClass() == Stmt::BinaryOperatorClass)
 		return extract_binary_increment(cast<BinaryOperator>(inc), iv);
 
-#if 0
+#if 1
 	inc->dumpColor();
 
 	if (inc->getStmtClass() == Stmt::CXXOperatorCallExprClass ) {
@@ -2202,9 +2204,9 @@ __isl_give pet_tree *PetScan::extract_for(ForStmt *stmt)
 	std::cerr << "done pe_iv extraction" << std::endl;
 	pe_iv = mark_write(pe_iv);
 
-	//treat_calls_like_access = true;
+	treat_calls_like_access = true;
 	pe_init = extract_expr(rhs);
-	//treat_calls_like_access = false;
+	treat_calls_like_access = false;
 
 	if (!stmt->getCond())
 		pe_cond = pet_expr_new_int(isl_val_one(ctx));
