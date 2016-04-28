@@ -37,10 +37,24 @@ struct pet_function_summary {
 	int ref;
 	isl_ctx *ctx;
 
+	int is_variadic;
+
 	unsigned n;
 
 	struct pet_function_summary_arg arg[];
 };
+
+
+__isl_give pet_function_summary *pet_function_summary_set_variadic(
+	__isl_take pet_function_summary *summary )
+{
+  if ( !summary ) {
+    return NULL;
+  }
+  summary->is_variadic = 1;
+
+  return summary;
+}
 
 /* Construct and return a new pet_function_summary object with
  * "n_arg" arguments, initialized to pet_arg_other.
@@ -61,6 +75,7 @@ __isl_give pet_function_summary *pet_function_summary_alloc(isl_ctx *ctx,
 	isl_ctx_ref(ctx);
 	summary->ref = 1;
 	summary->n = n_arg;
+	summary->is_variadic = 0;
 	for (i = 0; i < n_arg; ++i)
 		summary->arg[i].type = pet_arg_other;
 
@@ -132,6 +147,11 @@ __isl_give pet_function_summary *pet_function_summary_set_int(
 {
 	if (!summary || !id)
 		goto error;
+
+	// handle variadic functions
+	if (summary->is_variadic && pos >= summary->n ) {
+	  return summary;
+	}
 
 	if (pos < 0 || pos >= summary->n)
 		isl_die(summary->ctx, isl_error_invalid,
@@ -230,6 +250,10 @@ int pet_function_summary_arg_is_int(__isl_keep pet_function_summary *summary,
 	if (!summary)
 		return -1;
 
+	if ( summary->is_variadic && pos >= summary->n ) {
+	  return 0;
+	}
+
 	if (pos < 0 || pos >= summary->n)
 		isl_die(summary->ctx, isl_error_invalid,
 			"position out of bounds", return -1);
@@ -245,6 +269,10 @@ int pet_function_summary_arg_is_array(__isl_keep pet_function_summary *summary,
 {
 	if (!summary)
 		return -1;
+
+	if ( summary->is_variadic && pos >= summary->n ) {
+	  return 0;
+	}
 
 	if (pos < 0 || pos >= summary->n)
 		isl_die(summary->ctx, isl_error_invalid,
@@ -263,6 +291,7 @@ __isl_give isl_union_map *pet_function_summary_arg_get_access(
 {
 	if (!summary)
 		return NULL;
+
 	if (pos < 0 || pos >= summary->n)
 		isl_die(summary->ctx, isl_error_invalid,
 			"position out of bounds", return NULL);

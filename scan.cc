@@ -1384,27 +1384,25 @@ __isl_give pet_expr *PetScan::extract_argument(FunctionDecl *fd, int pos,
 	}
 	res = extract_expr(expr);
 
-	if ( !fd->isVariadic() ) {
-	  if (!res)
-		  return NULL;
-	  if (array_depth(expr->getType().getTypePtr()) > 0)
-		  is_partial = 1;
-	  if (detect_writes && (is_addr || is_partial) &&
-	      pet_expr_get_type(res) == pet_expr_access) {
-		  ParmVarDecl *parm;
-		  if (!fd->hasPrototype()) {
-			  report_prototype_required(expr);
-			  return pet_expr_free(res);
-		  }
+	if (!res)
+		return NULL;
+	if (array_depth(expr->getType().getTypePtr()) > 0)
+		is_partial = 1;
+	if (detect_writes && (is_addr || is_partial) && pet_expr_get_type(res) == pet_expr_access) {
+		ParmVarDecl *parm;
+		if (!fd->hasPrototype()) {
+			report_prototype_required(expr);
+			return pet_expr_free(res);
+		}
 
+		if ( fd->isVariadic() && pos >= fd->getNumParams() ) {
+		  unsupported_with_extra_string( expr, "this argument is passed to a variadic functions variadic part -> cannot determin constness -> assuming const !" );
+		}else{
 		  parm = fd->getParamDecl(pos);
-		  // TODO it is possible that getParamDecl does not return a Decl
-		  //      because the called function is a variadic function like printf 
-		  if (!const_base(parm->getType()))
-			  res = mark_may_write(res);
-	  }
-	}else{
-	  unsupported_with_extra_string( expr, "this argument is passed to a variadic function -> cannot determin constness -> assuming const !" );
+		  if (!const_base(parm->getType())){
+		    res = mark_may_write(res);
+		  }
+		}
 	}
 
 	if (is_addr)
@@ -2796,8 +2794,18 @@ __isl_give pet_function_summary *PetScan::get_summary(FunctionDecl *fd)
 
 	space = isl_space_set_alloc(ctx, 0, 0);
 
+	fd->dumpColor();
 	n = fd->getNumParams();
+	std::cerr << "n parameters " << n << std::endl;
+	std::cerr << "is variadic? " << fd->isVariadic() << std::endl;
+
+	// TODO if the function is variadic it is not possible to determin all parameters
+
 	summary = pet_function_summary_alloc(ctx, n);
+
+	if ( fd->isVariadic() ){
+	  summary = pet_function_summary_set_variadic( summary );
+	}
 	for (int i = 0; i < n; ++i) {
 		ParmVarDecl *parm = fd->getParamDecl(i);
 		QualType type = parm->getType();

@@ -27,6 +27,9 @@ __isl_null pet_function_summary *pet_function_summary_free(
 
 int pet_function_summary_get_n_arg(__isl_keep pet_function_summary *summary);
 
+__isl_give pet_function_summary *pet_function_summary_set_variadic(
+	__isl_take pet_function_summary *summary);
+
 __isl_give pet_function_summary *pet_function_summary_set_int(
 	__isl_take pet_function_summary *summary, int pos,
 	__isl_take isl_id *id);
