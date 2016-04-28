@@ -47,6 +47,7 @@
 #include "tree.h"
 #include "print.h"
 #include "value_bounds.h"
+#include "isl_type_information.h"
 
 /* pet_scop with extra information that is used during parsing and printing.
  *

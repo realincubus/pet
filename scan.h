@@ -129,6 +129,7 @@ struct PetScan {
 	static __isl_give isl_val *extract_int(isl_ctx *ctx,
 		clang::IntegerLiteral *expr);
 	__isl_give pet_expr *get_array_size(const clang::Type *type);
+	__isl_give pet_expr *get_array_size(const clang::StringLiteral* slit);
 	struct pet_array *extract_array(isl_ctx *ctx, clang::ValueDecl *decl,
 		PetTypes *types, __isl_keep pet_context *pc);
 private:
@@ -145,6 +146,7 @@ private:
 		PetTypes *types, __isl_keep pet_context *pc);
 	__isl_give pet_expr *set_upper_bounds(__isl_take pet_expr *expr,
 		const clang::Type *type, int pos);
+	__isl_give pet_expr *set_upper_bounds(__isl_take pet_expr *expr, const clang::StringLiteral* slit);
 	struct pet_array *set_upper_bounds(struct pet_array *array,
 		const clang::Type *type, __isl_keep pet_context *pc);
 
@@ -230,7 +232,7 @@ private:
 	__isl_give pet_expr *extract_index_expr(clang::CXXMemberCallExpr *expr);
 	__isl_give pet_expr *extract_index_expr(clang::CXXConstructExpr *expr);
 	__isl_give pet_expr *extract_index_expr(clang::MaterializeTemporaryExpr *expr);
-
+	__isl_give pet_expr *extract_index_expr(clang::StringLiteral *expr);
 	__isl_give pet_expr *extract_index_expr(clang::CXXOperatorCallExpr *expr);
 
 	__isl_give isl_val *extract_int(clang::Expr *expr);

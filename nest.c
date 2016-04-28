@@ -40,6 +40,7 @@
 #include "nest.h"
 #include "scop.h"
 #include "tree.h"
+#include "isl_type_information.h"
 
 /* A wrapper around pet_expr_free to be used as an isl_id free user function.
  */

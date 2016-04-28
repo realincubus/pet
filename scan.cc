@@ -65,6 +65,8 @@
 #include "tree.h"
 #include "tree2scop.h"
 
+#include "isl_type_information.h"
+
 using namespace std;
 using namespace clang;
 
@@ -270,7 +272,8 @@ static bool const_base(QualType qt)
  */
 static __isl_give isl_id *create_decl_id(isl_ctx *ctx, NamedDecl *decl)
 {
-	return isl_id_alloc(ctx, decl->getName().str().c_str(), decl);
+	fprintf(stderr,"decl addr before vpc %d\n", decl );
+	return isl_id_alloc(ctx, decl->getName().str().c_str(), register_user_data_type((void*)decl, ITI_NamedDecl) );
 }
 
 PetScan::~PetScan()
@@ -688,11 +691,27 @@ static int extract_depth(__isl_keep isl_multi_pw_aff *index)
 	id = isl_multi_pw_aff_get_tuple_id(index, isl_dim_out);
 	if (!id)
 		return -1;
-	decl = (ValueDecl *) isl_id_get_user(id);
-	isl_id_free(id);
 
-	std::cerr << "done " << __PRETTY_FUNCTION__ << std::endl;
-	return array_depth(decl->getType().getTypePtr());
+	auto user_data = isl_id_get_user( id );
+	// type lookup 
+	auto type = get_isl_id_user_data_type( user_data );
+  
+	// TODO remove the ITI_Unknown
+	if ( type == ITI_NamedDecl || type == ITI_Unknown ) {
+	  std::cerr << __PRETTY_FUNCTION__ << " is a NamedDecl" << std::endl;
+	  decl = (ValueDecl *) user_data;
+	  isl_id_free(id);
+
+	  return array_depth(decl->getType().getTypePtr());
+	}
+
+	if ( type == ITI_StringLiteral ) {
+	  std::cerr << " is a string literal" << std::endl;
+	  isl_id_free(id);
+
+	  // string literals always have a depth of 1
+	  return 1;
+	}
 }
 
 /* Return the depth of the array accessed by the access expression "expr".
@@ -905,6 +924,25 @@ __isl_give pet_expr *PetScan::extract_index_expr(MaterializeTemporaryExpr *temp)
   return extract_index_expr( expr );
 }
 
+/* 
+ * extract from string literal
+ */
+__isl_give pet_expr *PetScan::extract_index_expr(StringLiteral *slit)
+{
+  std::cerr << __PRETTY_FUNCTION__ << std::endl;
+
+  //std::string id_name = slit->getString();
+  static int ctr = 0;
+  string id_name = "constant_string_" + to_string(ctr++);
+
+  auto id = isl_id_alloc(ctx, id_name.c_str(), register_user_data_type( slit, ITI_StringLiteral ) );
+  auto space = isl_space_alloc(ctx, 0, 0, 0);
+  space = isl_space_set_tuple_id(space, isl_dim_out, id);
+
+  std::cerr << "done " << __PRETTY_FUNCTION__ << std::endl;
+  return pet_expr_from_index(isl_multi_pw_aff_zero(space));
+}
+
 /* Construct a pet_expr representing the index expression "expr"
  * Return NULL on error.
  *
@@ -935,6 +973,8 @@ __isl_give pet_expr *PetScan::extract_index_expr(Expr *expr)
 		return extract_index_expr(cast<CXXConstructExpr>(expr));
 	case Stmt::MaterializeTemporaryExprClass:
 		return extract_index_expr(cast<MaterializeTemporaryExpr>(expr));
+	case Stmt::StringLiteralClass:
+		return extract_index_expr(cast<StringLiteral>(expr));
 	default:
 		unsupported(expr);
 	}
@@ -1772,6 +1812,7 @@ __isl_give pet_expr *PetScan::extract_expr(Expr *expr )
 	case Stmt::CXXOperatorCallExprClass:
 		return extract_cxx_expr(expr);
 	case Stmt::ArraySubscriptExprClass:
+	case Stmt::StringLiteralClass:
 	case Stmt::DeclRefExprClass:
 	case Stmt::MemberExprClass:
 		return extract_access_expr(expr);
@@ -1784,11 +1825,7 @@ __isl_give pet_expr *PetScan::extract_expr(Expr *expr )
 	case Stmt::ConditionalOperatorClass:
 		return extract_expr(cast<ConditionalOperator>(expr));
 	case Stmt::CallExprClass:{
-		//if ( treat_calls_like_access ) {
-		  //return extract_access_expr(expr);
-		//}else{
-		  return extract_expr(cast<CallExpr>(expr));
-		//}
+		return extract_expr(cast<CallExpr>(expr));
 	}
 	case Stmt::CStyleCastExprClass:
 		return extract_expr(cast<CStyleCastExpr>(expr));
@@ -2684,10 +2721,20 @@ static __isl_give pet_expr *get_array_size(__isl_keep pet_expr *access,
 	const Type *type;
 
 	id = pet_expr_access_get_id(access);
-	decl = (ValueDecl *) isl_id_get_user(id);
-	isl_id_free(id);
-	type = get_array_type(decl).getTypePtr();
-	return ps->get_array_size(type);
+
+	auto user_data = isl_id_get_user(id);
+	auto udtype = get_isl_id_user_data_type( user_data );
+	if ( udtype == ITI_NamedDecl || udtype == ITI_Unknown ){
+	  decl = (ValueDecl *) isl_id_get_user(id);
+	  isl_id_free(id);
+	  type = get_array_type(decl).getTypePtr();
+	  return ps->get_array_size(type);
+	}
+	if ( udtype == ITI_StringLiteral ) {
+	  auto slit = (StringLiteral*)user_data;
+	  isl_id_free(id);
+	  ps->get_array_size(slit);
+	}
 }
 
 /* Construct and return a pet_array corresponding to the variable
@@ -3071,6 +3118,19 @@ __isl_give pet_expr *PetScan::set_upper_bounds(__isl_take pet_expr *expr,
 	return set_upper_bounds(expr, type, pos + 1);
 }
 
+__isl_give pet_expr *PetScan::set_upper_bounds(__isl_take pet_expr *expr, const StringLiteral* slit)
+{
+	if (!expr)
+		return NULL;
+
+	// is kind of a constant array type
+	unsigned int length = slit->getLength();
+	auto isl_int = isl_val_int_from_ui( ctx, length );
+	auto pet_length = pet_expr_new_int( isl_int );
+	expr = pet_expr_set_arg( expr, 0, pet_length );
+	return expr;
+}
+
 /* Construct a pet_expr that holds the sizes of an array of the given type.
  * The returned expression is a call expression with as arguments
  * the sizes in each dimension.  If we are unable to derive the size
@@ -3098,6 +3158,29 @@ __isl_give pet_expr *PetScan::get_array_size(const Type *type)
 
 	expr = set_upper_bounds(expr, type, 0);
 	type_size[type] = pet_expr_copy(expr);
+
+	return expr;
+}
+
+/* Construct a pet_expr that holds the sizes of a string literal.
+ * The returned expression is a call expression with as arguments
+ * the sizes in each dimension.   
+ */
+__isl_give pet_expr *PetScan::get_array_size(const StringLiteral* slit)
+{
+	int depth;
+	pet_expr *expr, *inf;
+
+	// cant be != 1
+	depth = 1;
+
+	inf = pet_expr_new_int(isl_val_infty(ctx));
+	expr = pet_expr_new_call(ctx, "bounds", depth);
+	for (int i = 0; i < depth; ++i)
+		expr = pet_expr_set_arg(expr, i, pet_expr_copy(inf));
+	pet_expr_free(inf);
+
+	expr = set_upper_bounds(expr, slit);
 
 	return expr;
 }

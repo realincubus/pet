@@ -41,6 +41,7 @@
 #include "expr_arg.h"
 #include "nest.h"
 #include "tree.h"
+#include "isl_type_information.h"
 
 /* A pet_context represents the context in which a pet_expr
  * in converted to an affine expression.

@@ -95,6 +95,7 @@
 #include "scan.h"
 #include "print.h"
 #include "initialize_pet.h"
+#include "isl_type_information.h"
 
 #define ARRAY_SIZE(array) (sizeof(array)/sizeof(*array))
 

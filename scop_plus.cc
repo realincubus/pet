@@ -39,6 +39,7 @@
 #include "expr.h"
 #include "scop_plus.h"
 #include "tree.h"
+#include "isl_type_information.h"
 
 using namespace std;
 using namespace clang;
@@ -115,14 +116,27 @@ static void access_collect_arrays(__isl_keep pet_expr *expr,
 	if (!id)
 		return;
 
-	decl = (ValueDecl *)isl_id_get_user(id);
-	isl_id_free(id);
+	auto user_data = isl_id_get_user( id );
+	auto udtype = get_isl_id_user_data_type( user_data );
 
-	if (!decl)
-		return;
+	if ( udtype == ITI_NamedDecl || udtype == ITI_Unknown ) {
+	  decl = (ValueDecl *)user_data;
+	  isl_id_free(id);
 
-	ancestors.push_back(decl);
-	collect_sub_arrays(decl, ancestors, arrays);
+	  if (!decl)
+		  return;
+
+	  ancestors.push_back(decl);
+	  collect_sub_arrays(decl, ancestors, arrays);
+	}
+
+	if ( udtype == ITI_StringLiteral ) {
+	  auto slit = (StringLiteral*)user_data;
+
+	  // TODO find out whether this is really needed
+	  //vector<StringLiteral *> ancestors;
+	  //collect_sub_arrays( slit, ancestors, arrays );
+	}
 }
 
 static void expr_collect_arrays(__isl_keep pet_expr *expr,

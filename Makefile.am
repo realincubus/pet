@@ -34,6 +34,7 @@ AM_CXXFLAGS = $(PET_INCLUDES) $(CLANG_CXXFLAGS) @ISL_CFLAGS@
 AM_LDFLAGS = $(CLANG_LDFLAGS)
 
 libpet_la_SOURCES = \
+	isl_type_information.cc \
 	aff.h \
 	aff.c \
 	array.h \
@@ -85,6 +86,7 @@ libpet_la_LIBADD =  -lclangParse -lclangSema -lclangFrontend -lclangDriver\
 	$(CLANG_LIBS) $(CLANG_LDFLAGS) $(LIB_ISL)
 
 libpet_cxx_la_SOURCES = \
+	isl_type_information.cc \
 	aff.h \
 	aff.c \
 	array.h \
