@@ -290,7 +290,8 @@ PetScan::~PetScan()
 
 DiagnosticsEngine& PetScan::getDiagnostics() {
   assert( diagnosticsEngine && "diagnostics engine is not set" );
-  return *diagnosticsEngine;
+  //return *diagnosticsEngine;
+  return ast_context.getDiagnostics();
 }
 
 /* Report a diagnostic, unless autodetect is set.
@@ -375,6 +376,10 @@ void PetScan::note_understood_with_extra_string(Stmt *stmt, std::string extra)
  */
 void PetScan::report_unsupported_statement_type(Stmt *stmt)
 {
+	std::cerr << "can not handle this stmt" << std::endl;
+	stmt->dump();
+	std::cerr << "done stmt dump" << std::endl;
+
 	DiagnosticsEngine &diag = getDiagnostics();
 	unsigned id = diag.getCustomDiagID(DiagnosticsEngine::Warning,
 				   "this type of statement is not supported");
@@ -618,6 +623,7 @@ static int array_depth(const Type *type)
 
 	// if it is a reference -> unwrap this one level
 	if (type->isLValueReferenceType() ){
+	  std::cerr << " is a l value reference type" << std::endl;
 	  auto lvrt = dyn_cast_or_null<LValueReferenceType>( type );
 	  if ( !lvrt ) {
 	    std::cerr << "not implemented" << std::endl;
@@ -628,9 +634,12 @@ static int array_depth(const Type *type)
 	  return array_depth( pt.getTypePtr() );
 	}
 
-	if (type->isPointerType())
+	if (type->isPointerType()){
+		std::cerr << " is a pointer type" << std::endl;
 		return 1 + array_depth(type->getPointeeType().getTypePtr());
+	}
 	if (type->isArrayType()) {
+		std::cerr << " is an array type" << std::endl;
 		const ArrayType *atype;
 		type = type->getCanonicalTypeInternal().getTypePtr();
 		atype = cast<ArrayType>(type);
@@ -665,6 +674,11 @@ static int array_depth(const Type *type)
 	    }
 	  }
 	}
+
+
+
+	std::cerr << "could not determin the depth of this type or the type is not an array type" << std::endl;
+
 	std::cerr << "done" << __PRETTY_FUNCTION__ << std::endl;
 	return 0;
 }
