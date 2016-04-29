@@ -673,6 +673,7 @@ struct PetASTConsumer : public ASTConsumer {
 				continue;
 			PetScan ps( ast_context, loc, options,
 				    isl_union_map_copy(vb), independent);
+			ps.diagnosticsEngine = &ast_context.getDiagnostics();
 			scop = ps.scan(fd);
 			call_fn(scop);
 			if ( scop ) {

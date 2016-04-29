@@ -34,6 +34,7 @@
 
 #include <set>
 #include <vector>
+#include <iostream>
 
 #include "clang.h"
 #include "expr.h"
@@ -44,6 +45,7 @@
 using namespace std;
 using namespace clang;
 
+
 /* And the sequence of nested arrays of structures "ancestors"
  * to "arrays".  The final element in the sequence may be a leaf
  * and may therefore refer to a primitive type rather than a record type.
@@ -51,10 +53,14 @@ using namespace clang;
  * Futhermore, if the innermost array in the sequence is an array of structures
  * then recursively call collect_sub_arrays for all subfields of this
  * structure.
+ *
+ * If the structure references itself this leads to an infinit loop
+ *
  */
-static void collect_sub_arrays(ValueDecl *decl, vector<ValueDecl *> ancestors,
+static void collect_sub_arrays(ValueDecl *decl, vector<ValueDecl *> ancestors, std::set<const Type*>& ancestor_types,
 	array_desc_set &arrays)
 {
+	std::cerr << __FILE__ << " " << __LINE__ << std::endl;
 	QualType type = decl->getType();
 	RecordDecl *record;
 	RecordDecl::field_iterator it;
@@ -63,18 +69,31 @@ static void collect_sub_arrays(ValueDecl *decl, vector<ValueDecl *> ancestors,
 
 	type = pet_clang_base_type(type);
 
+	auto found = ancestor_types.find( type.getTypePtr() );
+	if ( found != ancestor_types.end() ) {
+	  std::cerr << "recursion detected will not dig any deeper" << std::endl;
+	  return;
+	}
+	std::cerr << "storing " << type.getAsString() << std::endl;
+	ancestor_types.insert( type.getTypePtr() );
+
 	if (!type->isRecordType())
 		return;
 
 	record = pet_clang_record_decl(type);
 
+	std::cerr << __FILE__ << " " << __LINE__ << std::endl;
 	for (it = record->field_begin(); it != record->field_end(); ++it) {
 		FieldDecl *field = *it;
+		field->dump();
 		bool anonymous = field->isAnonymousStructOrUnion();
 
+		std::cerr << __FILE__ << " " << __LINE__ << std::endl;
 		if (!anonymous)
 			ancestors.push_back(field);
-		collect_sub_arrays(field, ancestors, arrays);
+
+		collect_sub_arrays(field, ancestors, ancestor_types, arrays);
+		std::cerr << __FILE__ << " " << __LINE__ << std::endl;
 		if (!anonymous)
 			ancestors.pop_back();
 	}
@@ -102,6 +121,7 @@ static void access_collect_arrays(__isl_keep pet_expr *expr,
 	isl_space *space;
 	ValueDecl *decl;
 	vector<ValueDecl *> ancestors;
+	set<const Type*> ancestor_types;
 
 	if (pet_expr_is_affine(expr))
 		return;
@@ -127,7 +147,9 @@ static void access_collect_arrays(__isl_keep pet_expr *expr,
 		  return;
 
 	  ancestors.push_back(decl);
-	  collect_sub_arrays(decl, ancestors, arrays);
+	  //ancestor_types.insert( decl->getType().getTypePtr() );
+	  //std::cerr << "storing " << decl->getType().getAsString() << std::endl;
+	  collect_sub_arrays(decl, ancestors, ancestor_types, arrays);
 	}
 
 	if ( udtype == ITI_StringLiteral ) {

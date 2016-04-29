@@ -675,6 +675,8 @@ struct PetASTConsumer : public ASTConsumer {
 				continue;
 			PetScan ps(ast_context, loc, options,
 				    isl_union_map_copy(vb), independent);
+			ps.diagnosticsEngine = &PP.getDiagnostics();
+
 			scop = ps.scan(fd);
 			call_fn(scop);
 		}
@@ -708,6 +710,7 @@ struct PetASTConsumer : public ASTConsumer {
 				PetScan ps(ast_context, loc, options,
 					    isl_union_map_copy(vb),
 					    independent);
+				ps.diagnosticsEngine = &PP.getDiagnostics();
 				out << "after creation" << endl;
 				scop = ps.scan(fd);
 				out << "after scan" << endl;

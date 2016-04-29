@@ -272,7 +272,6 @@ static bool const_base(QualType qt)
  */
 static __isl_give isl_id *create_decl_id(isl_ctx *ctx, NamedDecl *decl)
 {
-	fprintf(stderr,"decl addr before vpc %d\n", decl );
 	return isl_id_alloc(ctx, decl->getName().str().c_str(), register_user_data_type((void*)decl, ITI_NamedDecl) );
 }
 
@@ -289,6 +288,11 @@ PetScan::~PetScan()
 	isl_union_map_free(value_bounds);
 }
 
+DiagnosticsEngine& PetScan::getDiagnostics() {
+  assert( diagnosticsEngine && "diagnostics engine is not set" );
+  return *diagnosticsEngine;
+}
+
 /* Report a diagnostic, unless autodetect is set.
  */
 void PetScan::report(Stmt *stmt, unsigned id, std::string debug_information )
@@ -299,7 +303,7 @@ void PetScan::report(Stmt *stmt, unsigned id, std::string debug_information )
 	std::cerr << "in " << __PRETTY_FUNCTION__ << std::endl;
 	SourceLocation loc = stmt->getLocStart();
 	std::cerr << "got loc " << __PRETTY_FUNCTION__ << std::endl;
-	DiagnosticsEngine &diag = ast_context.getDiagnostics();
+	DiagnosticsEngine &diag = getDiagnostics();
 	std::cerr << "got diag engine " << __PRETTY_FUNCTION__ << std::endl;
 	DiagnosticBuilder B = diag.Report(loc, id) << debug_information << stmt->getSourceRange() ;
 	std::cerr << "done reporting " << __PRETTY_FUNCTION__ << std::endl;
@@ -312,7 +316,7 @@ void PetScan::report(Stmt *stmt, unsigned id, std::string debug_information )
  */
 void PetScan::unsupported(Stmt *stmt)
 {
-	DiagnosticsEngine &diag = ast_context.getDiagnostics();
+	DiagnosticsEngine &diag = getDiagnostics();
 	unsigned id = diag.getCustomDiagID(DiagnosticsEngine::Warning,
 					   "unsupported");
 	report(stmt, id);
@@ -325,7 +329,7 @@ void PetScan::unsupported(Stmt *stmt)
  */
 void PetScan::unsupported_with_extra_string(Stmt *stmt, std::string extra)
 {
-	DiagnosticsEngine &diag = ast_context.getDiagnostics();
+	DiagnosticsEngine &diag = getDiagnostics();
 	unsigned id = diag.getCustomDiagID(DiagnosticsEngine::Warning,
 					   "unsupported by pet: %0" );
 	report(stmt, id, extra );
@@ -342,7 +346,7 @@ void PetScan::unsupported_with_extra_string(Stmt *stmt, std::string extra)
 void PetScan::warning_assume_with_extra_string(Stmt *stmt, std::string extra)
 {
   std::cerr << __PRETTY_FUNCTION__ << std::endl;
-  DiagnosticsEngine &diag = ast_context.getDiagnostics();
+  DiagnosticsEngine &diag = getDiagnostics();
   std::cerr << "diag id" << std::endl;
   unsigned id = diag.getCustomDiagID(DiagnosticsEngine::Warning,
 				     "Assumption by Pet: %0" );
@@ -357,7 +361,7 @@ void PetScan::warning_assume_with_extra_string(Stmt *stmt, std::string extra)
  */
 void PetScan::note_understood_with_extra_string(Stmt *stmt, std::string extra)
 {
-	DiagnosticsEngine &diag = ast_context.getDiagnostics();
+	DiagnosticsEngine &diag = getDiagnostics();
 	unsigned id = diag.getCustomDiagID(DiagnosticsEngine::Warning,
 					   "Understood by Pet: %0" );
 	report(stmt, id, extra );
@@ -371,7 +375,7 @@ void PetScan::note_understood_with_extra_string(Stmt *stmt, std::string extra)
  */
 void PetScan::report_unsupported_statement_type(Stmt *stmt)
 {
-	DiagnosticsEngine &diag = ast_context.getDiagnostics();
+	DiagnosticsEngine &diag = getDiagnostics();
 	unsigned id = diag.getCustomDiagID(DiagnosticsEngine::Warning,
 				   "this type of statement is not supported");
 	report(stmt, id);
@@ -381,7 +385,7 @@ void PetScan::report_unsupported_statement_type(Stmt *stmt)
  */
 void PetScan::report_prototype_required(Stmt *stmt)
 {
-	DiagnosticsEngine &diag = ast_context.getDiagnostics();
+	DiagnosticsEngine &diag = getDiagnostics();
 	unsigned id = diag.getCustomDiagID(DiagnosticsEngine::Warning,
 					   "prototype required");
 	report(stmt, id);
@@ -391,7 +395,7 @@ void PetScan::report_prototype_required(Stmt *stmt)
  */
 void PetScan::report_missing_increment(Stmt *stmt)
 {
-	DiagnosticsEngine &diag = ast_context.getDiagnostics();
+	DiagnosticsEngine &diag = getDiagnostics();
 	unsigned id = diag.getCustomDiagID(DiagnosticsEngine::Warning,
 					   "missing increment");
 	report(stmt, id);
@@ -401,7 +405,7 @@ void PetScan::report_missing_increment(Stmt *stmt)
  */
 void PetScan::report_missing_summary_function(Stmt *stmt)
 {
-	DiagnosticsEngine &diag = ast_context.getDiagnostics();
+	DiagnosticsEngine &diag = getDiagnostics();
 	unsigned id = diag.getCustomDiagID(DiagnosticsEngine::Warning,
 					   "missing summary function");
 	report(stmt, id);
@@ -411,7 +415,7 @@ void PetScan::report_missing_summary_function(Stmt *stmt)
  */
 void PetScan::report_missing_summary_function_body(Stmt *stmt)
 {
-	DiagnosticsEngine &diag = ast_context.getDiagnostics();
+	DiagnosticsEngine &diag = getDiagnostics();
 	unsigned id = diag.getCustomDiagID(DiagnosticsEngine::Warning,
 					   "missing summary function body");
 	report(stmt, id);
@@ -2834,12 +2838,14 @@ __isl_give pet_function_summary *PetScan::get_summary(FunctionDecl *fd)
 	int_size = size_in_bytes(ast_context, ast_context.IntTy);
 	scop = pet_scop_from_pet_tree(tree, int_size,
 					&::extract_array, &body_scan, pc);
+	std::cerr << __FILE__ << " " << __LINE__ << std::endl;
 	scop = scan_arrays(scop, pc);
 	may_read = isl_union_map_range(pet_scop_collect_may_reads(scop));
 	may_write = isl_union_map_range(pet_scop_collect_may_writes(scop));
 	must_write = isl_union_map_range(pet_scop_collect_must_writes(scop));
 	to_inner = pet_scop_compute_outer_to_inner(scop);
 	pet_scop_free(scop);
+	std::cerr << __FILE__ << " " << __LINE__ << std::endl;
 
 	for (int i = 0; i < n; ++i) {
 		ParmVarDecl *parm = fd->getParamDecl(i);
@@ -2869,6 +2875,7 @@ __isl_give pet_function_summary *PetScan::get_summary(FunctionDecl *fd)
 		summary = pet_function_summary_set_array(summary, i,
 				may_read_i, may_write_i, must_write_i);
 	}
+	std::cerr << __FILE__ << " " << __LINE__ << std::endl;
 
 	isl_union_set_free(may_read);
 	isl_union_set_free(may_write);
@@ -2879,6 +2886,7 @@ __isl_give pet_function_summary *PetScan::get_summary(FunctionDecl *fd)
 	pet_context_free(pc);
 
 	summary_cache[fd] = pet_function_summary_copy(summary);
+	std::cerr << __FILE__ << " " << __LINE__ << std::endl;
 
 	return summary;
 }
@@ -2937,10 +2945,15 @@ struct pet_scop *PetScan::extract_scop(__isl_take pet_tree *tree)
 	domain = isl_set_universe(isl_space_set_alloc(ctx, 0, 0));
 	pc = pet_context_alloc(domain);
 	pc = pet_context_add_parameters(pc, tree, &::get_array_size, this);
+
+	std::cerr << __FILE__ << " " << __LINE__ << std::endl;
 	scop = pet_scop_from_pet_tree(tree, int_size,
 					&::extract_array, this, pc);
+	std::cerr << __FILE__ << " " << __LINE__ << std::endl;
 	scop = scan_arrays(scop, pc);
+	std::cerr << __FILE__ << " " << __LINE__ << std::endl;
 	pet_context_free(pc);
+	std::cerr << __FILE__ << " " << __LINE__ << std::endl;
 
 	return scop;
 }
@@ -3542,6 +3555,7 @@ static struct pet_scop *add_type(isl_ctx *ctx, struct pet_scop *scop,
 struct pet_scop *PetScan::scan_arrays(struct pet_scop *scop,
 	__isl_keep pet_context *pc)
 {
+	std::cerr << __FILE__ << " " << __LINE__ << std::endl;
 	int i, n;
 	array_desc_set arrays;
 	array_desc_set::iterator it;
@@ -3555,7 +3569,10 @@ struct pet_scop *PetScan::scan_arrays(struct pet_scop *scop,
 	if (!scop)
 		return NULL;
 
+	std::cerr << __FILE__ << " " << __LINE__ << std::endl;
 	pet_scop_collect_arrays(scop, arrays);
+	std::cerr << __FILE__ << " " << __LINE__ << std::endl;
+
 	if (arrays.size() == 0)
 		return scop;
 
@@ -3568,6 +3585,7 @@ struct pet_scop *PetScan::scan_arrays(struct pet_scop *scop,
 	scop->arrays = scop_arrays;
 
 	for (it = arrays.begin(), i = 0; it != arrays.end(); ++it, ++i) {
+		std::cerr << __FILE__ << " " << __LINE__ << std::endl;
 		struct pet_array *array;
 		array = extract_array(ctx, *it, &types, pc);
 		scop->arrays[n_array + i] = array;

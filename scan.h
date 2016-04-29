@@ -109,6 +109,8 @@ struct PetScan {
 	unsigned int call_ctr = 0;
 	std::unique_ptr<std::map<std::string, std::string>> name_to_text;
 
+	clang::DiagnosticsEngine* diagnosticsEngine = nullptr;
+
 	PetScan(clang::ASTContext &ast_context, ScopLoc &loc,
 		pet_options *options, __isl_take isl_union_map *value_bounds,
 		std::vector<Independent> &independent) :
@@ -136,6 +138,8 @@ private:
 	void set_current_stmt(clang::Stmt *stmt);
 	bool is_current_stmt_marked_independent();
 	bool isIncrementByOne( pet_expr* expr);
+
+	clang::DiagnosticsEngine& getDiagnostics();
 
 	struct pet_scop *scan(clang::Stmt *stmt);
 
