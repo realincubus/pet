@@ -616,6 +616,18 @@ static int array_depth(const Type *type)
 	std::cerr << __PRETTY_FUNCTION__ << " " << type << std::endl;
 	type->dump();
 
+	// if it is a reference -> unwrap this one level
+	if (type->isLValueReferenceType() ){
+	  auto lvrt = dyn_cast_or_null<LValueReferenceType>( type );
+	  if ( !lvrt ) {
+	    std::cerr << "not implemented" << std::endl;
+	    std::cerr << "handle this somehow" << std::endl;
+	    exit(-1);
+	  }
+	  auto pt = lvrt->getPointeeType();
+	  return array_depth( pt.getTypePtr() );
+	}
+
 	if (type->isPointerType())
 		return 1 + array_depth(type->getPointeeType().getTypePtr());
 	if (type->isArrayType()) {
