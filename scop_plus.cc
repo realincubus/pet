@@ -69,7 +69,6 @@ static void collect_sub_arrays(ValueDecl *decl, vector<ValueDecl *> ancestors, s
 
 	type = pet_clang_base_type(type);
 
-#if 1
 	auto found = ancestor_types.find( type.getTypePtr() );
 	if ( found != ancestor_types.end() ) {
 	  std::cerr << "recursion detected will not dig any deeper" << std::endl;
@@ -77,7 +76,7 @@ static void collect_sub_arrays(ValueDecl *decl, vector<ValueDecl *> ancestors, s
 	}
 	std::cerr << "storing " << type.getAsString() << std::endl;
 	ancestor_types.insert( type.getTypePtr() );
-#endif
+
 	if (!type->isRecordType())
 		return;
 
@@ -93,8 +92,7 @@ static void collect_sub_arrays(ValueDecl *decl, vector<ValueDecl *> ancestors, s
 		if (!anonymous)
 			ancestors.push_back(field);
 
-		auto ancestor_types_copy = ancestor_types;
-		collect_sub_arrays(field, ancestors, ancestor_types_copy, arrays);
+		collect_sub_arrays(field, ancestors, ancestor_types, arrays);
 		std::cerr << __FILE__ << " " << __LINE__ << std::endl;
 		if (!anonymous)
 			ancestors.pop_back();
