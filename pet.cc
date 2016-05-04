@@ -1029,8 +1029,9 @@ static int foreach_scop_in_C_source(isl_ctx *ctx,
 	Clang->createSourceManager(Clang->getFileManager());
 	TargetInfo *target = create_target_info(Clang, Diags);
 	Clang->setTarget(target);
-	CompilerInvocation::setLangDefaults(Clang->getLangOpts(), IK_C,
-					    LangStandard::lang_unspecified);
+	// TODO can be used when newer clang is installed: auto triple = llvm::sys::getDefaultTargetTriple();
+	//CompilerInvocation::setLangDefaults(Clang->getLangOpts(), IK_C,
+	//				    LangStandard::lang_unspecified);
 	HeaderSearchOptions &HSO = Clang->getHeaderSearchOpts();
 	HSO.ResourceDir = ResourceDir;
 	for (int i = 0; i < options->n_path; ++i)
