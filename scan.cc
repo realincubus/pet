@@ -568,10 +568,7 @@ __isl_give pet_expr *PetScan::extract_index_expr(ImplicitCastExpr *expr)
 	return extract_index_expr(expr->getSubExpr());
 }
 
-static bool isStdVector( QualType qt ) {
-  std::cerr << __PRETTY_FUNCTION__ << std::endl;
-  auto type_ptr = qt.getTypePtr();
-
+static bool isStdVector( const Type* type_ptr ) {
   std::cerr << "getTypeClassName " << type_ptr->getTypeClassName() << std::endl;
 
   // the std::vector is a record
@@ -587,12 +584,16 @@ static bool isStdVector( QualType qt ) {
   type_ptr->dump();
   std::cerr << "done " << __PRETTY_FUNCTION__ << std::endl;
   return false;
+
 }
 
-static bool isStdArray( QualType qt ) {
+static bool isStdVector( QualType qt ) {
   std::cerr << __PRETTY_FUNCTION__ << std::endl;
   auto type_ptr = qt.getTypePtr();
+  return isStdVector( type_ptr );
+}
 
+static bool isStdArray( const Type* type_ptr ) {
   std::cerr << "getTypeClassName " << type_ptr->getTypeClassName() << std::endl;
 
   // the std::array is a record
@@ -608,6 +609,13 @@ static bool isStdArray( QualType qt ) {
   type_ptr->dump();
   std::cerr << "done " << __PRETTY_FUNCTION__ << std::endl;
   return false;
+
+}
+
+static bool isStdArray( QualType qt ) {
+  std::cerr << __PRETTY_FUNCTION__ << std::endl;
+  auto type_ptr = qt.getTypePtr();
+  return isStdArray( type_ptr );
 }
 
 /* Return the depth of an array of the given type.
@@ -1020,12 +1028,30 @@ __isl_give pet_expr *PetScan::extract_index_expr(Expr *expr)
 // TODO CXXOperatorCall does not just cover the operator [] but also the assign operator between statements
 __isl_give pet_expr *PetScan::extract_index_expr(clang::CXXOperatorCallExpr *expr){
 
+	std::cerr << __PRETTY_FUNCTION__ << std::endl;
 	// check the argument count 
 	if ( expr->getNumArgs() != 2 ) {
 	  unsupported_msg( expr, "number of arguments is != 1" );
 	  return nullptr;
 	}
 	
+	// TODO dont allow to call this on objects that are other then vector or array ( atleast until this is fully implemented )
+	auto function_decl = expr->getDirectCallee();
+	std::cerr << "pet name of the operator called is " << function_decl->getQualifiedNameAsString() << std::endl;
+	auto method_decl = dyn_cast_or_null<CXXMethodDecl>(function_decl);
+	if ( !method_decl ) {
+	  unsupported_with_extra_string( expr, "cxx operator call needs to call a method not a function" );
+	  return nullptr;
+	}
+
+	auto cxx_record_decl = method_decl->getParent(); 
+	auto type = cxx_record_decl->getTypeForDecl();
+
+	if ( !isStdVector( type ) && !isStdArray( type ) ) {
+	  unsupported_with_extra_string( expr, "the object you are calling this method from is not a vector or array" );
+	  return nullptr;
+	}	
+
 	// check the operator type to be a subscript operation
 	if ( expr->getOperator() != OO_Subscript ){
 	  std::cerr << "dumping expr " << std::endl;
@@ -1342,6 +1368,7 @@ __isl_give pet_expr *PetScan::extract_access_expr(QualType qt,
  */
 __isl_give pet_expr *PetScan::extract_access_expr(Expr *expr)
 {
+	std::cerr << __PRETTY_FUNCTION__ << std::endl;
 	pet_expr *index;
 
 	index = extract_index_expr(expr);
@@ -1360,6 +1387,7 @@ __isl_give pet_expr *PetScan::extract_access_expr(Expr *expr)
  */
 __isl_give pet_expr *PetScan::extract_access_expr(ValueDecl *decl)
 {
+	std::cerr << __PRETTY_FUNCTION__ << std::endl;
 	return extract_access_expr(decl->getType(), extract_index_expr(decl));
 }
 
