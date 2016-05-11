@@ -290,7 +290,8 @@ PetScan::~PetScan()
 
 DiagnosticsEngine& PetScan::getDiagnostics() {
   assert( diagnosticsEngine && "diagnostics engine is not set" );
-  return *diagnosticsEngine;
+  return ast_context.getDiagnostics(); 
+  //return *diagnosticsEngine;
 }
 
 /* Report a diagnostic, unless autodetect is set.
@@ -882,6 +883,13 @@ __isl_give pet_expr *PetScan::extract_index_expr(CXXMemberCallExpr *call)
   //      std::array::size() 
   //      std::string::size()
   //      std::string::length() ...
+  
+  auto method_decl = call->getMethodDecl();
+  if ( !method_decl->isConst() ) {
+    std::cerr << "pet can not call a non const function" << std::endl;
+    return nullptr;
+  }
+  std::cerr << "pet member call of declaration fqn: " << method_decl->getQualifiedNameAsString() << std::endl;
 
 #if 1
   // get the text of how the function was called 
@@ -1589,8 +1597,17 @@ __isl_give pet_expr *PetScan::extract_expr(CXXMemberCallExpr *expr)
 		return NULL;
 	}
 
+	// TODO dont allow calls to non const functions
+	
+	auto method_decl = expr->getMethodDecl();
+	if ( !method_decl->isConst() ) {
+	  unsupported_with_extra_string( expr, "the function called is not const and will change the state of the object" );
+	  return nullptr;
+	}
+	
+
 	name = fd->getDeclName().getAsString();
-	std::cerr << __PRETTY_FUNCTION__ << " " << __LINE__ << " " << " name is TODO may need fqn" << name << std::endl;
+	std::cerr << __PRETTY_FUNCTION__ << " " << __LINE__ << " " << " name is TODO may need fqn " << name << std::endl;
 	n_arg = expr->getNumArgs();
 
 	if (options->pencil && n_arg == 1 && name == "__pencil_assume")
