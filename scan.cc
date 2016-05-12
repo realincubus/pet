@@ -1238,23 +1238,31 @@ __isl_give pet_expr *PetScan::extract_expr(BinaryOperator *expr)
 __isl_give pet_tree *PetScan::extract(Decl *decl)
 {
 	std::cerr << __PRETTY_FUNCTION__ << std::endl;
-	VarDecl *vd;
-	pet_expr *lhs, *rhs;
-	pet_tree *tree;
+	// TODO this does not handle the case that something might be a typedef decl
 
-	vd = cast<VarDecl>(decl);
+	if ( auto vd = dyn_cast_or_null<VarDecl>(decl) ) {
 
-	lhs = extract_access_expr(vd);
-	lhs = mark_write(lhs);
-	if (!vd->getInit())
-		tree = pet_tree_new_decl(lhs);
-	else {
-		rhs = extract_expr(vd->getInit());
-		tree = pet_tree_new_decl_init(lhs, rhs);
+	  pet_expr *lhs, *rhs;
+	  pet_tree *tree;
+
+	  lhs = extract_access_expr(vd);
+	  lhs = mark_write(lhs);
+	  if (!vd->getInit())
+		  tree = pet_tree_new_decl(lhs);
+	  else {
+		  rhs = extract_expr(vd->getInit());
+		  tree = pet_tree_new_decl_init(lhs, rhs);
+	  }
+	  return tree;
 	}
 
-	std::cerr << "done " << __PRETTY_FUNCTION__ << std::endl;
-	return tree;
+	if ( auto typedf_decl = dyn_cast_or_null<TypedefDecl>( decl ) ) {
+	  std::cerr << "pet this is a typedef decl and can be ignored" << std::endl;
+	  // TODO CRITICAL i dont belive that its ok to return nullptr since the expression needs to be marked as 
+	  //               "ignored" or something like this
+	  return nullptr;
+	}
+
 }
 
 /* Construct a pet_tree for a variable declaration statement.
@@ -1264,6 +1272,8 @@ __isl_give pet_tree *PetScan::extract(Decl *decl)
 __isl_give pet_tree *PetScan::extract(DeclStmt *stmt)
 {
 	std::cerr << __PRETTY_FUNCTION__ << std::endl;
+
+
 	pet_tree *tree;
 	unsigned n;
 
