@@ -1444,6 +1444,21 @@ __isl_give pet_expr *PetScan::extract_argument(FunctionDecl *fd, int pos,
 			expr = op->getSubExpr();
 		}
 	}
+
+	// special handling for CXXDefaultArgExpr case
+	if ( auto default_arg = dyn_cast_or_null<CXXDefaultArgExpr>(expr) ) {
+	  // we can get the default args substitution from the declaration
+	  auto expr = default_arg->getExpr();
+
+	  // analyze this expr
+	  auto res = extract_expr( expr );
+
+	  // it can not be a writing expr 
+	  // since the function decl can not know anything about the caller and 
+	  // due to this nothing about the variables or arrays of the caller
+	  return res;
+	}
+
 	res = extract_expr(expr);
 
 	if (!res)
@@ -1635,8 +1650,7 @@ __isl_give pet_expr *PetScan::extract_expr(CXXMemberCallExpr *expr)
 		return NULL;
 	}
 
-	// TODO dont allow calls to non const functions
-	
+	// dont allow calls to non const functions
 	auto method_decl = expr->getMethodDecl();
 	if ( !method_decl->isConst() ) {
 	  unsupported_with_extra_string( expr, "the function called is not const and will change the state of the object" );
