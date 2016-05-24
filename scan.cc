@@ -618,6 +618,16 @@ static bool isStdArray( QualType qt ) {
   return isStdArray( type_ptr );
 }
 
+
+static bool isRandomAccessStlType( const Type* type ) {
+  return isStdArray( type ) || isStdVector( type );
+}
+
+static bool isRandomAccessStlType( QualType qt ) {
+  auto type_ptr = qt.getTypePtr();
+  return isRandomAccessStlType( type_ptr );
+}
+
 /* Return the depth of an array of the given type.
  */
 static int array_depth(const Type *type)
@@ -899,6 +909,10 @@ __isl_give pet_expr *PetScan::extract_index_expr(CXXMemberCallExpr *call)
   }
   std::cerr << "pet member call of declaration fqn: " << method_decl->getQualifiedNameAsString() << std::endl;
 
+  auto name = method_decl->getQualifiedNameAsString();
+
+
+
 #if 1
   // get the text of how the function was called 
   auto& SM = ast_context.getSourceManager();
@@ -1047,7 +1061,7 @@ __isl_give pet_expr *PetScan::extract_index_expr(clang::CXXOperatorCallExpr *exp
 	auto cxx_record_decl = method_decl->getParent(); 
 	auto type = cxx_record_decl->getTypeForDecl();
 
-	if ( !isStdVector( type ) && !isStdArray( type ) ) {
+	if ( !isRandomAccessStlType( type ) ) {
 	  unsupported_with_extra_string( expr, "the object you are calling this method from is not a vector or array" );
 	  return nullptr;
 	}	
@@ -1153,6 +1167,14 @@ static __isl_give pet_expr *mark_write(__isl_take pet_expr *access)
 	return access;
 }
 
+/* Mark the given access pet_expr as a reduction like oparation
+ */
+static __isl_give pet_expr *mark_reduction(__isl_take pet_expr *access)
+{
+	access = pet_expr_access_set_reduction(access, 1);
+	return access;
+}
+
 /* Mark the given (read) access pet_expr as also possibly being written.
  * That is, initialize the may write access relation from the may read relation
  * and initialize the must write access relation to the empty relation.
@@ -1223,8 +1245,10 @@ __isl_give pet_expr *PetScan::extract_expr(BinaryOperator *expr)
 	if (expr->isAssignmentOp() &&
 	    pet_expr_get_type(lhs) == pet_expr_access) {
 		lhs = mark_write(lhs);
-		if (expr->isCompoundAssignmentOp())
-			lhs = pet_expr_access_set_read(lhs, 1);
+		if (expr->isCompoundAssignmentOp()) {
+		    lhs = pet_expr_access_set_read(lhs, 1);
+		    lhs = pet_expr_access_set_reduction( lhs , 1 );
+		}
 	}
 
 	std::cerr << "get_type_size in BinaryOperator " << std::endl;
@@ -1998,8 +2022,7 @@ ValueDecl *PetScan::extract_induction_variable(BinaryOperator *init)
 	return decl;
 }
 
-// TODO this just works with sugared types by simply adding std:: infront of vector this will no work anymore
-// TODO add comment
+// TODO remove the debug output
 static bool isIteratorType( QualType qt ){
 
   // TODO make it query the type we are iterating over
@@ -2009,10 +2032,46 @@ static bool isIteratorType( QualType qt ){
 
   std::cerr << "getTypeClassName " << type_ptr->getTypeClassName() << std::endl;
   std::cerr << "sugared typename " << qt.getAsString() << std::endl;
-
-  if ( qt.getAsString() != "vector<double>::iterator" ) return false;
-
+  
   type_ptr->dump();
+
+  if ( auto elaborated_type = dyn_cast_or_null<ElaboratedType>(type_ptr) ) {
+
+
+    auto nested_name_specifier = elaborated_type->getQualifier();
+
+    // check for the type beeing vector or array 
+    std::cerr << "pet nested name is "  << std::endl;
+    nested_name_specifier->dump();
+    std::cerr << std::endl;
+
+    if ( nested_name_specifier->getKind() == NestedNameSpecifier::TypeSpec ) {
+      auto type = nested_name_specifier->getAsType();
+      if ( isRandomAccessStlType( type ) ) {
+	std::cerr << "pet the base type of this iterator is allowed" << std::endl;
+
+	// TODO check the named_type_qt for its name
+	auto named_type_qt = elaborated_type->getNamedType();
+	auto type = named_type_qt.getTypePtr();
+
+	if ( named_type_qt.getAsString() == "iterator" ) {
+	  std::cerr << "pet name of the elab types NamedType is iterator " << std::endl;
+	  return true;
+	}else{
+	  std::cerr << "pet name of the elab types NamedType is not iterator " << std::endl;
+	  return false;
+	}
+      }
+    }else{
+      std::cerr << "pet kind is not a TypeSpec but " << nested_name_specifier->getKind() << std::endl;
+      return false;
+    }
+
+  }else{
+    std::cerr << "pet is not a ElaboratedType" << std::endl;
+    return false;
+  }
+
   std::cerr << "done " << __PRETTY_FUNCTION__ << std::endl;
   return true;
 }
@@ -2038,6 +2097,8 @@ VarDecl *PetScan::extract_induction_variable(Stmt *init, Decl *decl)
 		unsupported(init);
 		return NULL;
 	}
+
+	std::cerr << "pet returning from " << __PRETTY_FUNCTION__ << std::endl;
 
 	return vd;
 }

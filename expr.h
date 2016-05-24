@@ -93,6 +93,7 @@ struct pet_expr {
 			int depth;
 			unsigned read : 1;
 			unsigned write : 1;
+			unsigned reduction : 1;
 			unsigned kill : 1;
 			isl_union_map *access[pet_expr_access_end];
 		} acc;

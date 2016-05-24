@@ -516,6 +516,7 @@ static __isl_give pet_expr *pet_expr_dup(__isl_keep pet_expr *expr)
 		}
 		dup = pet_expr_access_set_read(dup, expr->acc.read);
 		dup = pet_expr_access_set_write(dup, expr->acc.write);
+		dup = pet_expr_access_set_reduction(dup, expr->acc.reduction);
 		dup = pet_expr_access_set_kill(dup, expr->acc.kill);
 		break;
 	case pet_expr_call:
@@ -1043,6 +1044,20 @@ int pet_expr_access_is_write(__isl_keep pet_expr *expr)
 			"not an access expression", return -1);
 
 	return expr->acc.write;
+}
+
+
+/* Does the access expression "expr" behave like a reduction operation ?
+ */
+int pet_expr_access_is_reduction(__isl_keep pet_expr *expr)
+{
+	if (!expr)
+		return -1;
+	if (expr->type != pet_expr_access)
+		isl_die(pet_expr_get_ctx(expr), isl_error_invalid,
+			"not an access expression", return -1);
+
+	return expr->acc.reduction;
 }
 
 /* Return the identifier of the array accessed by "expr".
@@ -2005,6 +2020,26 @@ __isl_give pet_expr *pet_expr_access_set_write(__isl_take pet_expr *expr,
 	if (!expr)
 		return NULL;
 	expr->acc.write = write;
+
+	return expr;
+}
+
+/* Mark "expr" as a reduction dependening on "reduction".
+ */
+__isl_give pet_expr *pet_expr_access_set_reduction(__isl_take pet_expr *expr,
+	int reduction)
+{
+	if (!expr)
+		return pet_expr_free(expr);
+	if (expr->type != pet_expr_access)
+		isl_die(pet_expr_get_ctx(expr), isl_error_invalid,
+			"not an access expression", return pet_expr_free(expr));
+	if (expr->acc.reduction == reduction)
+		return expr;
+	expr = pet_expr_cow(expr);
+	if (!expr)
+		return NULL;
+	expr->acc.reduction = reduction;
 
 	return expr;
 }
@@ -3455,6 +3490,8 @@ void pet_expr_dump_with_indent(__isl_keep pet_expr *expr, int indent)
 					"", expr->acc.read);
 			fprintf(stderr, "%*swrite: %d\n", indent + 2,
 					"", expr->acc.write);
+			fprintf(stderr, "%*sreduction: %d\n", indent + 2,
+					"", expr->acc.reduction);
 		}
 		if (expr->acc.access[pet_expr_access_may_read]) {
 			fprintf(stderr, "%*smay_read: ", indent + 2, "");
