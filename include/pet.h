@@ -107,6 +107,7 @@ enum pet_op_type {
 	pet_op_last
 };
 
+
 /* Index into the pet_expr->args array when pet_expr->type == pet_expr_unary
  */
 enum pet_un_arg_type {
@@ -171,15 +172,19 @@ int pet_expr_access_is_write(__isl_keep pet_expr *expr);
 /* Does the access expression "expr" behave like a reduction? */
 int pet_expr_access_is_reduction(__isl_keep pet_expr *expr);
 
+/* Returns the type of reduction operation */
+enum pet_op_type pet_expr_access_get_reduction_type ( __isl_keep pet_expr* expr );
+
 /* Mark "expr" as a read dependening on "read". */
 __isl_give pet_expr *pet_expr_access_set_read(__isl_take pet_expr *expr,
 	int read);
 /* Mark "expr" as a write dependening on "write". */
 __isl_give pet_expr *pet_expr_access_set_write(__isl_take pet_expr *expr,
 	int write);
+
 /* Mark "expr" as a reduction dependening on "reduction". */
 __isl_give pet_expr *pet_expr_access_set_reduction(__isl_take pet_expr *expr,
-	int reduction);
+	int reduction, enum pet_op_type t );
 /* Mark "expr" as a kill dependening on "kill". */
 __isl_give pet_expr *pet_expr_access_set_kill(__isl_take pet_expr *expr,
 	int kill);

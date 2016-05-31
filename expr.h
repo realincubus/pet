@@ -95,6 +95,7 @@ struct pet_expr {
 			unsigned write : 1;
 			unsigned reduction : 1;
 			unsigned kill : 1;
+			enum pet_op_type reduction_type;
 			isl_union_map *access[pet_expr_access_end];
 		} acc;
 		enum pet_op_type op;

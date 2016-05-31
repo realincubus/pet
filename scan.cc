@@ -1167,14 +1167,6 @@ static __isl_give pet_expr *mark_write(__isl_take pet_expr *access)
 	return access;
 }
 
-/* Mark the given access pet_expr as a reduction like oparation
- */
-static __isl_give pet_expr *mark_reduction(__isl_take pet_expr *access)
-{
-	access = pet_expr_access_set_reduction(access, 1);
-	return access;
-}
-
 /* Mark the given (read) access pet_expr as also possibly being written.
  * That is, initialize the may write access relation from the may read relation
  * and initialize the must write access relation to the empty relation.
@@ -1247,7 +1239,7 @@ __isl_give pet_expr *PetScan::extract_expr(BinaryOperator *expr)
 		lhs = mark_write(lhs);
 		if (expr->isCompoundAssignmentOp()) {
 		    lhs = pet_expr_access_set_read(lhs, 1);
-		    lhs = pet_expr_access_set_reduction( lhs , 1 );
+		    lhs = pet_expr_access_set_reduction( lhs , 1, op );
 		}
 	}
 

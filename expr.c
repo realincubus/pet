@@ -516,7 +516,7 @@ static __isl_give pet_expr *pet_expr_dup(__isl_keep pet_expr *expr)
 		}
 		dup = pet_expr_access_set_read(dup, expr->acc.read);
 		dup = pet_expr_access_set_write(dup, expr->acc.write);
-		dup = pet_expr_access_set_reduction(dup, expr->acc.reduction);
+		dup = pet_expr_access_set_reduction(dup, expr->acc.reduction, expr->acc.reduction_type);
 		dup = pet_expr_access_set_kill(dup, expr->acc.kill);
 		break;
 	case pet_expr_call:
@@ -2027,7 +2027,7 @@ __isl_give pet_expr *pet_expr_access_set_write(__isl_take pet_expr *expr,
 /* Mark "expr" as a reduction dependening on "reduction".
  */
 __isl_give pet_expr *pet_expr_access_set_reduction(__isl_take pet_expr *expr,
-	int reduction)
+	int reduction, enum pet_op_type t)
 {
 	if (!expr)
 		return pet_expr_free(expr);
@@ -2040,8 +2040,17 @@ __isl_give pet_expr *pet_expr_access_set_reduction(__isl_take pet_expr *expr,
 	if (!expr)
 		return NULL;
 	expr->acc.reduction = reduction;
+	expr->acc.reduction_type = t;
 
 	return expr;
+}
+
+
+/* Mark "expr" as a reduction dependening on "reduction".
+ */
+enum pet_op_type pet_expr_access_get_reduction_type(__isl_keep pet_expr *expr )
+{
+	return expr->acc.reduction_type;
 }
 
 /* Mark "expr" as a kill dependening on "kill".
@@ -3459,6 +3468,48 @@ error:
 	return NULL;
 }
 
+const char* get_pet_op_type_name ( enum pet_op_type t ) {
+  const char* pet_op_type_names[] = {
+    /* only compound assignments operators before assignment */
+    "pet_op_add_assign",
+    "pet_op_sub_assign",
+    "pet_op_mul_assign",
+    "pet_op_div_assign",
+    "pet_op_assign",
+    "pet_op_add",
+    "pet_op_sub",
+    "pet_op_mul",
+    "pet_op_div",
+    "pet_op_mod",
+    "pet_op_shl",
+    "pet_op_shr",
+    "pet_op_eq",
+    "pet_op_ne",
+    "pet_op_le",
+    "pet_op_ge",
+    "pet_op_lt",
+    "pet_op_gt",
+    "pet_op_minus",
+    "pet_op_post_inc",
+    "pet_op_post_dec",
+    "pet_op_pre_inc",
+    "pet_op_pre_dec",
+    "pet_op_address_of",
+    "pet_op_assume",
+    "pet_op_kill",
+    "pet_op_and",
+    "pet_op_xor",
+    "pet_op_or",
+    "pet_op_not",
+    "pet_op_land",
+    "pet_op_lor",
+    "pet_op_lnot",
+    "pet_op_cond",
+    "pet_op_last"
+  };
+  return pet_op_type_names[t];
+}
+
 void pet_expr_dump_with_indent(__isl_keep pet_expr *expr, int indent)
 {
 	int i;
@@ -3490,8 +3541,8 @@ void pet_expr_dump_with_indent(__isl_keep pet_expr *expr, int indent)
 					"", expr->acc.read);
 			fprintf(stderr, "%*swrite: %d\n", indent + 2,
 					"", expr->acc.write);
-			fprintf(stderr, "%*sreduction: %d\n", indent + 2,
-					"", expr->acc.reduction);
+			fprintf(stderr, "%*sreduction: %d type: %s\n", indent + 2,
+					"", expr->acc.reduction, get_pet_op_type_name(expr->acc.reduction_type));
 		}
 		if (expr->acc.access[pet_expr_access_may_read]) {
 			fprintf(stderr, "%*smay_read: ", indent + 2, "");
