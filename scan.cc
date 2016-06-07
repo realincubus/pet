@@ -1239,7 +1239,13 @@ __isl_give pet_expr *PetScan::extract_expr(BinaryOperator *expr)
 		lhs = mark_write(lhs);
 		if (expr->isCompoundAssignmentOp()) {
 		    lhs = pet_expr_access_set_read(lhs, 1);
-		    lhs = pet_expr_access_set_reduction( lhs , 1, op );
+		    // check that the LHS is not an array
+		    auto clang_lhs = expr->getLHS();
+		    auto qtype = clang_lhs->getType();
+		    auto type = qtype.getTypePtr();
+		    if ( !type->isArrayType() ) {
+		      lhs = pet_expr_access_set_reduction( lhs , 1, op );
+		    }
 		}
 	}
 
