@@ -795,8 +795,10 @@ __isl_give pet_expr *PetScan::extract_index_expr(ValueDecl *decl)
 		return extract_expr(cast<EnumConstantDecl>(decl));
 
 	id = create_decl_id(ctx, decl);
+	std::cerr << "id " << id << std::endl;
 	space = isl_space_alloc(ctx, 0, 0, 0);
 	space = isl_space_set_tuple_id(space, isl_dim_out, id);
+	std::cerr << "space " << space << std::endl;
 
 	return pet_expr_from_index(isl_multi_pw_aff_zero(space));
 }
@@ -1259,32 +1261,38 @@ __isl_give pet_expr *PetScan::extract_expr(BinaryOperator *expr)
  */
 __isl_give pet_tree *PetScan::extract(Decl *decl)
 {
-	std::cerr << __PRETTY_FUNCTION__ << std::endl;
-	// TODO this does not handle the case that something might be a typedef decl
+    std::cerr << __PRETTY_FUNCTION__ << std::endl;
 
-	if ( auto vd = dyn_cast_or_null<VarDecl>(decl) ) {
+    if ( auto vd = dyn_cast_or_null<VarDecl>(decl) ) {
 
-	  pet_expr *lhs, *rhs;
-	  pet_tree *tree;
+      std::cerr << "is a vardecl" << std::endl;
 
-	  lhs = extract_access_expr(vd);
-	  lhs = mark_write(lhs);
-	  if (!vd->getInit())
-		  tree = pet_tree_new_decl(lhs);
-	  else {
-		  rhs = extract_expr(vd->getInit());
-		  tree = pet_tree_new_decl_init(lhs, rhs);
-	  }
-	  return tree;
-	}
+      pet_expr *lhs, *rhs;
+      pet_tree *tree;
 
-	if ( auto typedf_decl = dyn_cast_or_null<TypedefDecl>( decl ) ) {
-	  std::cerr << "pet this is a typedef decl and can be ignored" << std::endl;
-	  // TODO CRITICAL i dont belive that its ok to return nullptr since the expression needs to be marked as 
-	  //               "ignored" or something like this
-	  return nullptr;
-	}
+      lhs = extract_access_expr(vd);
+      lhs = mark_write(lhs);
+      if (!vd->getInit()){
+	      tree = pet_tree_new_decl(lhs);
+	      std::cerr << "no init new pet tree for decl " << tree << std::endl;
+      }else {
+	      std::cerr << "staring to extract expr" << std::endl;
+	      rhs = extract_expr(vd->getInit());
+	      std::cerr << "done extracting expr" << std::endl;
+	      tree = pet_tree_new_decl_init(lhs, rhs);
+	      std::cerr << "init new pet tree for decl " << tree << std::endl;
+      }
+      return tree;
+    }
 
+    if ( auto typedf_decl = dyn_cast_or_null<TypedefDecl>( decl ) ) {
+      std::cerr << "pet this is a typedef decl and can be ignored" << std::endl;
+      // TODO CRITICAL i dont belive that its ok to return nullptr since the expression needs to be marked as 
+      //               "ignored" or something like this
+      return nullptr;
+    }
+
+    return nullptr;
 }
 
 /* Construct a pet_tree for a variable declaration statement.
@@ -1321,7 +1329,7 @@ __isl_give pet_tree *PetScan::extract(DeclStmt *stmt)
 	}
 
 	auto* ret = extract(stmt->getSingleDecl());
-	std::cerr << "done " << __PRETTY_FUNCTION__ << std::endl;
+	std::cerr << "done " << __PRETTY_FUNCTION__ << " ret is " << ret << std::endl;
 	return ret;
 }
 
@@ -1411,7 +1419,10 @@ __isl_give pet_expr *PetScan::extract_access_expr(Expr *expr)
 	if (pet_expr_get_type(index) == pet_expr_int)
 		return index;
 
-	return extract_access_expr(expr->getType(), index);
+	auto ret = extract_access_expr(expr->getType(), index);
+	std::cout << "ret " << ret << std::endl;
+	
+	return ret;
 }
 
 /* Extract an index expression from "decl" and then convert it into
@@ -1906,6 +1917,9 @@ __isl_give pet_expr *PetScan::extract_expr(MaterializeTemporaryExpr *temp)
  */
 __isl_give pet_expr *PetScan::extract_expr(Expr *expr )
 {
+
+	//std::cerr << "calling extract_expr hub with type " << expr->getStmtClass()  << std::endl;
+
 	switch (expr->getStmtClass()) {
 	case Stmt::UnaryOperatorClass:
 		return extract_expr(cast<UnaryOperator>(expr));
@@ -1944,7 +1958,8 @@ __isl_give pet_expr *PetScan::extract_expr(Expr *expr )
 		if ( treat_calls_like_access ) {
 		  return extract_access_expr( expr );
 		}else{
-		  assert( 0 && "not implemented " );
+		  std::cerr << "not implemented" << std::endl;
+		  exit(-1);
 		  return nullptr;
 		}
 	case Stmt::MaterializeTemporaryExprClass:
@@ -2651,6 +2666,7 @@ __isl_give pet_tree *PetScan::extract(Stmt *stmt, bool skip_declarations)
 		break;
 	case Stmt::DeclStmtClass:
 		tree = extract(cast<DeclStmt>(stmt));
+		std::cerr << "tree for decl stmt " << tree << std::endl;
 		break;
 	default:
 		report_unsupported_statement_type(stmt);

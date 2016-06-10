@@ -239,6 +239,28 @@ static struct pet_scop *scop_from_decl(__isl_keep pet_tree *tree,
 	scop_decl = pet_scop_add_array(scop_decl, array);
 	fprintf(stderr,"%s %s %d\n", __FILE__, __PRETTY_FUNCTION__, __LINE__ );
 
+	int treat_no_init_as_write_with_undefined = 1;
+
+	// TODO if the decl has no init the decl will get lost in the process since no 
+	//      statement is generated for this decl 
+	//      it might be better to assume that a decl with no init is a init to 0 or undefinded value
+	if ( treat_no_init_as_write_with_undefined ) {
+
+	  ctx = pet_tree_get_ctx(tree);
+
+	  lhs = pet_expr_copy(tree->u.d.var);
+	  rhs = pet_expr_copy( pet_expr_new_int(isl_val_zero(ctx)) ); // TODO  make something up // problem needs to work for array and scalar // and even worse possibly instances of classes
+
+	  type_size = pet_expr_get_type_size(lhs);
+	  pe = pet_expr_new_binary(type_size, pet_op_assign, lhs, rhs);
+
+	  scop = scop_from_expr(pe, state->n_stmt++, pet_tree_get_loc(tree), pc);
+
+
+	  scop = pet_scop_add_seq(ctx, scop_decl, scop);
+	  return scop;
+	}
+
 	if (tree->type != pet_tree_decl_init)
 		return scop_decl;
 
@@ -2734,6 +2756,7 @@ struct pet_scop *pet_scop_from_pet_tree(__isl_take pet_tree *tree, int int_size,
 	struct pet_scop *scop;
 	struct pet_state state = { 0 };
 
+	fprintf(stderr,"%s %s %d - %d\n", __FILE__, __PRETTY_FUNCTION__, __LINE__, tree );
 	if (!tree)
 		return NULL;
 
@@ -2744,8 +2767,11 @@ struct pet_scop *pet_scop_from_pet_tree(__isl_take pet_tree *tree, int int_size,
 	if (pet_tree_foreach_sub_tree(tree, &set_first_stmt, &state) < 0)
 		tree = pet_tree_free(tree);
 
+	fprintf(stderr,"%s %s %d\n", __FILE__, __PRETTY_FUNCTION__, __LINE__ );
 	scop = scop_from_tree(tree, pc, &state);
+	fprintf(stderr,"%s %s %d\n", __FILE__, __PRETTY_FUNCTION__, __LINE__ );
 	scop = pet_scop_set_loc(scop, pet_tree_get_loc(tree));
+	fprintf(stderr,"%s %s %d\n", __FILE__, __PRETTY_FUNCTION__, __LINE__ );
 
 	pet_tree_free(tree);
 

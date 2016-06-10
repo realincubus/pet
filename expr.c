@@ -3542,7 +3542,7 @@ void pet_expr_dump_with_indent(__isl_keep pet_expr *expr, int indent)
 			fprintf(stderr, "%*swrite: %d\n", indent + 2,
 					"", expr->acc.write);
 			fprintf(stderr, "%*sreduction: %d type: %s\n", indent + 2,
-					"", expr->acc.reduction, get_pet_op_type_name(expr->acc.reduction_type));
+					"", expr->acc.reduction, expr->acc.reduction ? get_pet_op_type_name(expr->acc.reduction_type) : "");
 		}
 		if (expr->acc.access[pet_expr_access_may_read]) {
 			fprintf(stderr, "%*smay_read: ", indent + 2, "");
