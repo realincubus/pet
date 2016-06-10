@@ -239,7 +239,7 @@ static struct pet_scop *scop_from_decl(__isl_keep pet_tree *tree,
 	scop_decl = pet_scop_add_array(scop_decl, array);
 	fprintf(stderr,"%s %s %d\n", __FILE__, __PRETTY_FUNCTION__, __LINE__ );
 
-	int treat_no_init_as_write_with_undefined = 1;
+	int treat_no_init_as_write_with_undefined = 0;
 
 	// TODO if the decl has no init the decl will get lost in the process since no 
 	//      statement is generated for this decl 
