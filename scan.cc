@@ -1420,7 +1420,6 @@ __isl_give pet_expr *PetScan::extract_access_expr(Expr *expr)
 		return index;
 
 	auto ret = extract_access_expr(expr->getType(), index);
-	std::cout << "ret " << ret << std::endl;
 	
 	return ret;
 }
