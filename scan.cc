@@ -268,11 +268,47 @@ static bool const_base(QualType qt)
 }
 
 
+static bool isShadowing( NamedDecl* decl, DeclContext* dc ) {
+
+  //std::cerr << "lookup for this decl:" << std::endl;
+  //decl->dump();
+  //std::cerr << "decl contexts" << std::endl;
+  //dc->dumpDeclContext();
+  //std::cerr << "lookups" << std::endl;
+  //dc->dumpLookups();
+
+  auto name = decl->getDeclName();
+  auto lookup_results = dc->noload_lookup( name );
+
+  std::cerr << __PRETTY_FUNCTION__ << " results " << lookup_results.size() << std::endl;
+  for( auto& lookup_result : lookup_results ){
+    std::cerr << "decl " << decl->getName().str() << " is shadowing :" << std::endl;
+    lookup_result->dump(); 
+    std::cerr << std::endl;  
+  }
+
+  // recurse until you find something
+  if ( lookup_results.size() == 0 ) {
+    if ( auto parent = dc->getLookupParent() ){
+      return isShadowing( decl, parent ); 
+    }else{
+      return false;
+    }
+  }
+  return true;
+}
+
 /* Create an isl_id that refers to the named declarator "decl".
  */
 static __isl_give isl_id *create_decl_id(isl_ctx *ctx, NamedDecl *decl)
 {
-	return isl_id_alloc(ctx, decl->getName().str().c_str(), register_user_data_type((void*)decl, ITI_NamedDecl) );
+
+  auto *dc = decl->getDeclContext();
+  if ( isShadowing( decl, dc ) ) {
+    std::cerr << "decl " << decl->getName().str() << " is shadowing " << std::endl;
+  }
+
+  return isl_id_alloc(ctx, decl->getName().str().c_str(), register_user_data_type((void*)decl, ITI_NamedDecl) );
 }
 
 PetScan::~PetScan()
@@ -1212,7 +1248,7 @@ __isl_give pet_expr *PetScan::extract_expr(UnaryOperator *expr)
 	}
 
 	type_size = get_type_size(expr->getType(), ast_context);
-	return pet_expr_new_unary(type_size, op, arg);
+	return pet_expr_access_set_user(pet_expr_new_unary(type_size, op, arg), expr);
 }
 
 /* Construct a pet_expr representing a binary operator expression.
@@ -1912,6 +1948,15 @@ __isl_give pet_expr *PetScan::extract_expr(MaterializeTemporaryExpr *temp)
   return extract_expr( expr );
 }
 
+
+/* Construct a pet_expr representing the integer enum constant "ecd".
+ */
+__isl_give pet_expr *PetScan::extract_expr(ExprWithCleanups *ewc)
+{
+  auto expr = ewc->getSubExpr();
+  return extract_expr( expr );
+}
+
 /* Try and construct a pet_expr representing "expr".
  */
 __isl_give pet_expr *PetScan::extract_expr(Expr *expr )
@@ -1929,6 +1974,8 @@ __isl_give pet_expr *PetScan::extract_expr(Expr *expr )
 		return extract_expr(cast<ImplicitCastExpr>(expr));
 	case Stmt::CXXOperatorCallExprClass:
 		return extract_cxx_expr(expr);
+	case Stmt::ExprWithCleanupsClass:
+		return extract_expr(cast<ExprWithCleanups>(expr));
 	case Stmt::ArraySubscriptExprClass:
 	case Stmt::StringLiteralClass:
 	case Stmt::DeclRefExprClass:

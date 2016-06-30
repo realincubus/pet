@@ -86,6 +86,8 @@ struct pet_expr {
 	unsigned n_arg;
 	pet_expr **args;
 
+	void* user;
+
 	union {
 		struct {
 			isl_id *ref_id;

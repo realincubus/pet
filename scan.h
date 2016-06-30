@@ -219,6 +219,7 @@ private:
 
 	__isl_give pet_expr *extract_expr(clang::MaterializeTemporaryExpr *expr);
 	__isl_give pet_expr *extract_expr(clang::CXXMemberCallExpr *expr);
+	__isl_give pet_expr *extract_expr(clang::ExprWithCleanups *expr);
 
 	__isl_give pet_expr *extract_access_expr(clang::QualType qt,
 		__isl_take pet_expr *index);

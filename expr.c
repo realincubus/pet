@@ -2046,6 +2046,32 @@ __isl_give pet_expr *pet_expr_access_set_reduction(__isl_take pet_expr *expr,
 }
 
 
+/* add user data.
+ */
+__isl_give pet_expr *pet_expr_access_set_user(__isl_take pet_expr *expr, void* user )
+{
+	if (!expr)
+		return pet_expr_free(expr);
+	if (expr->type != pet_expr_access)
+		isl_die(pet_expr_get_ctx(expr), isl_error_invalid,
+			"not an access expression", return pet_expr_free(expr));
+	if (expr->user == user)
+		return expr;
+	expr = pet_expr_cow(expr);
+	if (!expr)
+		return NULL;
+	expr->user = user;
+	return expr;
+}
+
+
+/* get the user data
+ */
+void* pet_expr_access_get_user(__isl_keep pet_expr *expr )
+{
+	return expr->user;
+}
+
 /* Mark "expr" as a reduction dependening on "reduction".
  */
 enum pet_op_type pet_expr_access_get_reduction_type(__isl_keep pet_expr *expr )
