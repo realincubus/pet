@@ -1248,7 +1248,8 @@ __isl_give pet_expr *PetScan::extract_expr(UnaryOperator *expr)
 	}
 
 	type_size = get_type_size(expr->getType(), ast_context);
-	return pet_expr_access_set_user(pet_expr_new_unary(type_size, op, arg), expr);
+	//return pet_expr_access_set_user(pet_expr_new_unary(type_size, op, arg), expr);
+	return pet_expr_new_unary(type_size, op, arg);
 }
 
 /* Construct a pet_expr representing a binary operator expression.
@@ -1953,6 +1954,7 @@ __isl_give pet_expr *PetScan::extract_expr(MaterializeTemporaryExpr *temp)
  */
 __isl_give pet_expr *PetScan::extract_expr(ExprWithCleanups *ewc)
 {
+  std::cerr << __PRETTY_FUNCTION__ << std::endl;
   auto expr = ewc->getSubExpr();
   return extract_expr( expr );
 }
