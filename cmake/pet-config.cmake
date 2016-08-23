@@ -11,8 +11,8 @@ if (PET_INCLUDE_DIR AND PET_LIBRARY)
 	set(PET_FIND_QUIETLY TRUE)
 endif()
 
-find_path(PET_INCLUDE_DIR NAMES pet_cxx.h)
-find_library(PET_LIBRARY NAMES libpet_cxx.a )
+find_path(PET_INCLUDE_DIR NAMES include/pet_cxx.h)
+find_library(PET_LIBRARY NAMES lib/libpet_cxx.a )
 
 get_filename_component( PET_LIBRARY_DIR ${PET_LIBRARY} DIRECTORY )
 
