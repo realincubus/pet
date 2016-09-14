@@ -2466,6 +2466,103 @@ __isl_give pet_tree *PetScan::extract_for(ForStmt *stmt)
 	return tree;
 }
 
+/* Construct a pet_tree for a for statement.
+ * The for loop is required to be of one of the following forms
+ *
+ *	for (i = init; condition; ++i)
+ *	for (i = init; condition; --i)
+ *	for (i = init; condition; i += constant)
+ *	for (i = init; condition; i -= constant)
+ *
+ * We extract a pet_tree for the body and then include it in a pet_tree
+ * of type pet_tree_for.
+ *
+ * As a special case, we also allow a for loop of the form
+ *
+ *	for (;;)
+ *
+ * in which case we return a pet_tree of type pet_tree_infinite_loop.
+ *
+ * If we were only able to extract part of the body, then simply
+ * return that part.
+ */
+__isl_give pet_tree *PetScan::extract_range_for(CXXForRangeStmt *stmt)
+{
+	std::cerr << __PRETTY_FUNCTION__ << std::endl;
+	BinaryOperator *ass;
+	Decl *decl;
+	Stmt *init;
+	Expr *lhs, *rhs;
+	ValueDecl *iv;
+	pet_tree *tree;
+	struct pet_scop *scop;
+	int independent;
+	int declared;
+	pet_expr *pe_init, *pe_inc, *pe_iv, *pe_cond;
+
+	independent = is_current_stmt_marked_independent();
+
+	init = stmt->getRangeInit();
+	if (!init) {
+		unsupported(stmt);
+		return NULL;
+	}
+
+#if 0
+	if ((ass = initialization_assignment(init)) != NULL) {
+		iv = extract_induction_variable(ass);
+		if (!iv)
+			return NULL;
+		lhs = ass->getLHS();
+		rhs = ass->getRHS();
+	} else if ((decl = initialization_declaration(init)) != NULL) {
+		VarDecl *var = extract_induction_variable(init, decl);
+		if (!var)
+			return NULL;
+		iv = var;
+		rhs = var->getInit();
+		lhs = create_DeclRefExpr(var);
+	} else {
+		unsupported(stmt->getInit());
+		return NULL;
+	}
+
+	declared = !initialization_assignment(stmt->getInit());
+	tree = extract(stmt->getBody());
+
+	// lets see what it understood
+	pet_tree_dump( tree );
+
+	if (partial)
+		return tree;
+	std::cerr << "pe_iv extraction" << std::endl;
+	pe_iv = extract_access_expr(iv);
+	std::cerr << "done pe_iv extraction" << std::endl;
+	pe_iv = mark_write(pe_iv);
+
+	treat_calls_like_access = true;
+	pe_init = extract_expr(rhs);
+	treat_calls_like_access = false;
+
+	if (!stmt->getCond())
+		pe_cond = pet_expr_new_int(isl_val_one(ctx));
+	else{
+	  treat_calls_like_access = true;
+	  pe_cond = extract_expr(stmt->getCond());
+	  treat_calls_like_access = false;
+	}
+	
+	std::cerr << "after cond extraction" << std::endl;
+	pe_inc = extract_increment(stmt, iv);
+	tree = pet_tree_new_for(independent, declared, pe_iv, pe_init, pe_cond,
+				pe_inc, tree);
+	std::cerr << "done " <<  __PRETTY_FUNCTION__ << std::endl;
+#endif
+	return tree;
+}
+
+
+
 /* Try and construct a pet_tree corresponding to a compound statement.
  *
  * "skip_declarations" is set if we should skip initial declarations
@@ -2696,6 +2793,9 @@ __isl_give pet_tree *PetScan::extract(Stmt *stmt, bool skip_declarations)
 		break;
 	case Stmt::ForStmtClass:
 		tree = extract_for(cast<ForStmt>(stmt));
+		break;
+	case Stmt::CXXForRangeStmtClass:
+		tree = extract_range_for(cast<CXXForRangeStmt>(stmt));
 		break;
 	case Stmt::IfStmtClass:
 		tree = extract(cast<IfStmt>(stmt));
