@@ -604,59 +604,32 @@ __isl_give pet_expr *PetScan::extract_index_expr(ImplicitCastExpr *expr)
 	return extract_index_expr(expr->getSubExpr());
 }
 
-static bool isStdVector( const Type* type_ptr ) {
-  std::cerr << "getTypeClassName " << type_ptr->getTypeClassName() << std::endl;
-
-  // the std::vector is a record
+static bool isRecordTypeByName( const Type* type_ptr, std::string name ) {
+  // check for beeing a record type
   if ( !type_ptr->isRecordType() ) return false;
 
   // get the declaration 
   auto* record_type = type_ptr->getAs<RecordType>();
   auto* record_decl = record_type->getDecl();
 
-  std::cerr << "qualified name " << record_decl->getQualifiedNameAsString() << std::endl;
-  if ( record_decl->getQualifiedNameAsString() == "std::vector" ) return true;
+  if ( record_decl->getQualifiedNameAsString() == name ) return true;
 
-  type_ptr->dump();
-  std::cerr << "done " << __PRETTY_FUNCTION__ << std::endl;
   return false;
-
 }
 
 static bool isStdVector( QualType qt ) {
-  std::cerr << __PRETTY_FUNCTION__ << std::endl;
-  auto type_ptr = qt.getTypePtr();
-  return isStdVector( type_ptr );
-}
-
-static bool isStdArray( const Type* type_ptr ) {
-  std::cerr << "getTypeClassName " << type_ptr->getTypeClassName() << std::endl;
-
-  // the std::array is a record
-  if ( !type_ptr->isRecordType() ) return false;
-
-  // get the declaration 
-  auto* record_type = type_ptr->getAs<RecordType>();
-  auto* record_decl = record_type->getDecl();
-
-  std::cerr << "qualified name " << record_decl->getQualifiedNameAsString() << std::endl;
-  if ( record_decl->getQualifiedNameAsString() == "std::array" ) return true;
-
-  type_ptr->dump();
-  std::cerr << "done " << __PRETTY_FUNCTION__ << std::endl;
-  return false;
-
+  return isRecordTypeByName( qt.getTypePtr(), "std::vector" );
 }
 
 static bool isStdArray( QualType qt ) {
-  std::cerr << __PRETTY_FUNCTION__ << std::endl;
-  auto type_ptr = qt.getTypePtr();
-  return isStdArray( type_ptr );
+  return isRecordTypeByName( qt.getTypePtr(), "std::array" );
 }
 
 
 static bool isRandomAccessStlType( const Type* type ) {
-  return isStdArray( type ) || isStdVector( type );
+  return isRecordTypeByName( type, "std::array" ) || isRecordTypeByName( type, "std::vector" ) ||
+         isRecordTypeByName( type, "std::__cxx11::basic_string" ) || isRecordTypeByName( type, "std::basic_string" ) ||
+	 isRecordTypeByName( type, "std::deque" );
 }
 
 static bool isRandomAccessStlType( QualType qt ) {
@@ -698,9 +671,22 @@ static int array_depth(const Type *type)
 
 	  // check for a std::vector 
 	  if ( tst->getNumArgs() == 1 ) {
+	    // TODO merge all together one argument types together
 	    // get the record that belongs to this template
 	    auto qual_type = tst->desugar();
 	    if ( isStdVector( qual_type ) ) {
+	      auto arg0 = tst->getArg(0);
+	      auto qual_type = arg0.getAsType();
+	      // recurse into the next level
+	      return 1 + array_depth( qual_type.getTypePtr() ); 
+	    }
+	    if ( isRecordTypeByName( qual_type.getTypePtr(), "std::deque" ) ){
+	      auto arg0 = tst->getArg(0);
+	      auto qual_type = arg0.getAsType();
+	      // recurse into the next level
+	      return 1 + array_depth( qual_type.getTypePtr() ); 
+	    }
+	    if ( isRecordTypeByName( qual_type.getTypePtr(), "std::__cxx11::basic_string" ) ||  isRecordTypeByName( qual_type.getTypePtr(), "std::basic_string" ) ){
 	      auto arg0 = tst->getArg(0);
 	      auto qual_type = arg0.getAsType();
 	      // recurse into the next level
