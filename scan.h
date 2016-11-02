@@ -94,6 +94,8 @@ struct PetScan {
 	 */
 	std::map<clang::FunctionDecl *, pet_function_summary *> summary_cache;
 
+	std::map<clang::VarDecl*, clang::VarDecl*> iterator_to_index_map;
+
 	/* A union of mappings of the form
 	 *	{ identifier[] -> [i] : lower_bound <= i <= upper_bound }
 	 */
@@ -255,6 +257,7 @@ private:
 
 	pet_expr* build_iterator_unequal_comparison( clang::Expr* lhs, clang::Expr* rhs );
 	pet_expr* iterator_init_transformation( clang::Expr* rhs );
+	clang::VarDecl* get_or_create_iterator_replacement( clang::VarDecl* iterator_decl );
 
 	void report(clang::Stmt *stmt, unsigned id, std::string debug_information = "" );
 	void unsupported(clang::Stmt *stmt);

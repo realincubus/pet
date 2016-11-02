@@ -2705,8 +2705,11 @@ static __isl_give isl_pw_aff *extract_affine_from_access(
 {
 	int pos;
 	isl_id *id;
+	fprintf(stderr, "checking affineness on access \n" );
+	fprintf(stderr, "%s %d \n", __FILE__, __LINE__);
 
 	if (pet_expr_is_affine(expr)) {
+	fprintf(stderr, "%s %d \n", __FILE__, __LINE__);
 		isl_pw_aff *pa;
 		isl_multi_pw_aff *mpa;
 
@@ -2716,15 +2719,21 @@ static __isl_give isl_pw_aff *extract_affine_from_access(
 		return pa;
 	}
 
-	if (pet_expr_get_type_size(expr) == 0)
+	if (pet_expr_get_type_size(expr) == 0){
+		fprintf(stderr, "expr is not affine due to wrong type size\n" );
 		return non_affine(pet_context_get_space(pc));
+	}
 
-	if (!pet_expr_is_scalar_access(expr))
+	if (!pet_expr_is_scalar_access(expr)){
+		fprintf(stderr, "%s %d \n", __FILE__, __LINE__);
 		return nested_access(expr, pc);
+	}
 
 	id = pet_expr_access_get_id(expr);
-	if (pet_context_is_assigned(pc, id))
+	if (pet_context_is_assigned(pc, id)){
+		fprintf(stderr, "%s %d \n", __FILE__, __LINE__);
 		return pet_context_get_value(pc, id);
+	}
 
 	isl_id_free(id);
 	return nested_access(expr, pc);

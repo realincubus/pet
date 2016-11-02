@@ -251,6 +251,32 @@ static DeclRefExpr *create_DeclRefExpr(VarDecl *var)
 }
 #endif
 
+static VarDecl *create_VarDecl(VarDecl* var, ASTContext* ctx)
+{
+	// ASTContext &C, 
+	// DeclContext *DC, 
+	// SourceLocation StartLoc, 
+	// SourceLocation IdLoc, 
+	// IdentifierInfo *Id, 
+	// QualType T, 
+	// TypeSourceInfo *TInfo, 
+	// StorageClass S
+	BuiltinType* bit = new BuiltinType( BuiltinType::Int );
+	QualType q( bit, 0 );
+	auto tsi = ctx->CreateTypeSourceInfo( q );
+	
+	return VarDecl::Create(
+			var->getASTContext(),
+			var->getDeclContext(), 
+			var->getInnerLocStart(), 
+			var->getInnerLocStart(), 
+			var->getIdentifier(),
+			q, 
+			tsi,
+			var->getStorageClass()
+			);
+}
+
 #ifdef GETTYPEINFORETURNSTYPEINFO
 
 static int size_in_bytes(ASTContext &context, QualType type)
@@ -327,6 +353,9 @@ static __isl_give isl_id *create_decl_id(isl_ctx *ctx, NamedDecl *decl)
     std::cerr << "decl " << decl->getName().str() << " is shadowing " << std::endl;
   }
 	cerr << "new id with name: " << decl->getName().str() << endl;
+	if ( auto value_decl = dyn_cast_or_null<ValueDecl>( decl ) ) {
+		cerr  << " and type " << value_decl->getType().getAsString() << endl;
+	}
   return isl_id_alloc(ctx, decl->getName().str().c_str(), register_user_data_type((void*)decl, ITI_NamedDecl) );
 }
 
@@ -560,7 +589,7 @@ static int get_type_size(QualType qt, ASTContext &ast_context)
 
 	std::cerr << qt.getAsString() << std::endl;
 
-	if (!qt->isIntegerType())
+	if (!qt->isIntegerType() && !isIteratorType( qt.getTypePtr() ) )
 		return 0;
 
 	size = ast_context.getIntWidth(qt);
@@ -1343,6 +1372,7 @@ __isl_give pet_expr *PetScan::extract_expr(BinaryOperator *expr)
 	std::cerr << "get_type_size in BinaryOperator " << std::endl;
 	type_size = get_type_size(expr->getType(), ast_context);
 	std::cerr << "done get_type_size in BinaryOperator test" << std::endl;
+	cerr << "binaryOperator " << type_size << " " << op << endl;
 	return pet_expr_new_binary(type_size, op, lhs, rhs);
 }
 
@@ -1950,6 +1980,17 @@ VarDecl* extract_member_call( Expr* e ) {
 	// to catch containers referenced via std::begin( container ) 
 }
 
+
+VarDecl* PetScan::get_or_create_iterator_replacement( VarDecl* iterator_decl ) {
+	auto item = iterator_to_index_map.find( iterator_decl ); 
+	if ( item != iterator_to_index_map.end() ) return item->second ;
+
+	cerr << "create a var decl with the same name but a different type" << endl;
+	auto vd = create_VarDecl( iterator_decl, &ast_context ); 
+	vd->dump();
+	iterator_to_index_map[iterator_decl] = vd;
+}
+
 // TODO needs information about the iteration direction ? 
 // TODO needs information about the iteration begin
 // TODO change name to: less then
@@ -1958,14 +1999,16 @@ PetScan::build_iterator_unequal_comparison( Expr* lhs, Expr* rhs ) {
 	cerr << __PRETTY_FUNCTION__ << endl;
 	
 	bool is_lhs_it = false;
+	VarDecl* iterator_decl = nullptr;
 
 	// check lhs for beeing an iterator
-	auto check_it = [](Expr* expr){
+	auto check_it = [&](Expr* expr){
 		if ( auto impl_cast = ignoreImplicitCast( expr ) ){ 
 			if ( auto decl_ref_expr = dyn_cast_or_null<DeclRefExpr>(impl_cast) ){
 				if ( auto decl = decl_ref_expr->getDecl() ) {
 					auto type = decl->getType();
 					if ( isIteratorType( type ) ) {
+						iterator_decl = (VarDecl*)decl;
 						return true;	
 					}
 				}
@@ -2003,11 +2046,19 @@ PetScan::build_iterator_unequal_comparison( Expr* lhs, Expr* rhs ) {
 							// TODO CRITICAL you have to check for the instances type to be a random access container
 							auto op = pet_op_lt;
 							auto pet_lhs = extract_expr( lhs );
-							auto pet_rhs = pet_expr_new_call(ctx, "x.size", 0);
+
+							//auto pet_rhs = pet_expr_new_call(ctx, "x.size()", 0);
+							// TODO fill with call to <container>.size()
+#if 1
+							unsigned int length = 1000;
+							auto isl_int = isl_val_int_from_ui( ctx, length );
+							auto pet_rhs = pet_expr_new_int( isl_int );
+#endif
 
 							// TODO build a binary expression that compares declref to the iterator
 							//      with container.size() if the loop begins with begin, ends with end and iterates with ++
-							return pet_expr_new_binary(0, op, pet_lhs, pet_rhs);
+							cerr << "unequal_comp " << 1 << " " << op << endl;
+							return pet_expr_new_binary(1, op, pet_lhs, pet_rhs);
 						}
 					}
 
@@ -2061,6 +2112,7 @@ __isl_give pet_expr *PetScan::extract_cxx_binary_operator(CXXOperatorCallExpr *e
 	}
 
 	type_size = get_type_size(expr->getType(), ast_context);
+	cerr << "cxx_binary_operator " << type_size << " " << op << endl;
 	return pet_expr_new_binary(type_size, op, lhs, rhs);
 }
 
@@ -2480,15 +2532,21 @@ __isl_give pet_expr *PetScan::extract_unary_increment(
 		clang::CXXOperatorCallExpr* expr,
 		clang::ValueDecl* iv
 ) {
+	cerr << __PRETTY_FUNCTION__ << expr->getNumArgs() << endl;
   auto cxx_operator = expr;
+	cxx_operator->dump();
 
-	if ( expr->getNumArgs() != 1 ) return nullptr;
+	if ( expr->getNumArgs() != 2 ) return nullptr;
 	// check the type of the object beeing used
 	auto arg0 = expr->getArg(0);
 
+	cerr << __LINE__ << endl;
 	if ( auto decl_ref_expr = dyn_cast_or_null<DeclRefExpr>(ignoreImplicitCast(arg0)) ) {
+		cerr << __LINE__ << endl;
 		if ( auto decl = decl_ref_expr->getDecl() ) {
+			cerr << __LINE__ << endl;
 			if ( auto type = decl->getType().getTypePtr() ) {
+				cerr << __LINE__ << endl;
 				if ( isIteratorType( type ) ) {
 					if ( expr->getOperator() == OO_PlusPlus ){
 						return pet_expr_new_int(isl_val_one(ctx));
