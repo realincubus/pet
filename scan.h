@@ -185,6 +185,10 @@ private:
 				clang::Decl *stmt);
 	__isl_give pet_expr *extract_unary_increment(clang::UnaryOperator *op,
 				clang::ValueDecl *iv);
+	__isl_give pet_expr *extract_unary_increment( 
+		clang::CXXOperatorCallExpr* expr,
+		clang::ValueDecl* iv
+	);
 	__isl_give pet_expr *extract_binary_increment(
 				clang::BinaryOperator *op,
 				clang::ValueDecl *iv);
@@ -240,6 +244,7 @@ private:
 	__isl_give pet_expr *extract_index_expr(clang::MaterializeTemporaryExpr *expr);
 	__isl_give pet_expr *extract_index_expr(clang::StringLiteral *expr);
 	__isl_give pet_expr *extract_index_expr(clang::CXXOperatorCallExpr *expr);
+	__isl_give pet_expr *extract_index_expr_unary(clang::CXXOperatorCallExpr *expr);
 
 	__isl_give isl_val *extract_int(clang::Expr *expr);
 	__isl_give isl_val *extract_int(clang::ParenExpr *expr);
@@ -247,6 +252,9 @@ private:
 	clang::FunctionDecl *find_decl_from_name(clang::CallExpr *call,
 		std::string name);
 	clang::FunctionDecl *get_summary_function(clang::CallExpr *call);
+
+	pet_expr* build_iterator_unequal_comparison( clang::Expr* lhs, clang::Expr* rhs );
+	pet_expr* iterator_init_transformation( clang::Expr* rhs );
 
 	void report(clang::Stmt *stmt, unsigned id, std::string debug_information = "" );
 	void unsupported(clang::Stmt *stmt);
