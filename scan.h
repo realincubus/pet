@@ -258,6 +258,7 @@ private:
 	pet_expr* build_iterator_unequal_comparison( clang::Expr* lhs, clang::Expr* rhs );
 	pet_expr* iterator_init_transformation( clang::Expr* rhs );
 	clang::VarDecl* get_or_create_iterator_replacement( clang::VarDecl* iterator_decl );
+	std::string createCallPlaceholder( std::string call_text );
 
 	void report(clang::Stmt *stmt, unsigned id, std::string debug_information = "" );
 	void unsupported(clang::Stmt *stmt);

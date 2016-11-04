@@ -587,10 +587,14 @@ static int get_type_size(QualType qt, ASTContext &ast_context)
 	std::cerr << __PRETTY_FUNCTION__ << std::endl;
 	int size;
 
+	qt->dump();
 	std::cerr << qt.getAsString() << std::endl;
+	// TODO handle function proto types as well 
 
-	if (!qt->isIntegerType() && !isIteratorType( qt.getTypePtr() ) )
+	if (!qt->isIntegerType() && !isIteratorType( qt.getTypePtr() ) ){
+		cerr << "not an interger and not a iterator type" << endl;
 		return 0;
+	}
 
 	size = ast_context.getIntWidth(qt);
 	if (!qt->isUnsignedIntegerType())
@@ -607,6 +611,8 @@ static int get_type_size(QualType qt, ASTContext &ast_context)
 static int get_type_size(ValueDecl *decl)
 {
 	if ( FunctionDecl* fdecl = dyn_cast_or_null<FunctionDecl>( decl ) ){
+		cerr << "getting type size for function " << endl;
+		fdecl->dump();
 	  return get_type_size(fdecl->getReturnType(),decl->getASTContext() );
 	}
 	
@@ -920,6 +926,13 @@ void PetScan::checkPureOrConst( CallExpr* call ) {
   std::cerr << __PRETTY_FUNCTION__ << std::endl;
 }
 
+std::string PetScan::createCallPlaceholder( std::string call_text ) {
+	std::string placeholder = "C_" + to_string(call_ctr++);
+  // add a placeholder entry to the map
+  (*name_to_text)[placeholder] = call_text;
+	return placeholder;
+}
+
 /* 
  * hack to allow calls to function ins conditions without loosing the affineness constraint
  *
@@ -950,15 +963,12 @@ __isl_give pet_expr *PetScan::extract_index_expr(CallExpr *call)
 
   // TODO create a map between calls and their placeholder
   
-  string placeholder = "C_" + to_string(call_ctr++);
+  string placeholder = createCallPlaceholder( call_text );
 
   // create a decl id from this call
   auto id = isl_id_alloc(ctx,  placeholder.c_str(), cast<NamedDecl>(call->getCalleeDecl()) );
   auto space = isl_space_alloc(ctx, 0, 0, 0);
   space = isl_space_set_tuple_id(space, isl_dim_out, id);
-
-  // add a placeholder entry to the map
-  (*name_to_text)[placeholder] = call_text;
 
   std::cerr << "done " << __PRETTY_FUNCTION__ << std::endl;
   return pet_expr_from_index(isl_multi_pw_aff_zero(space));
@@ -1991,6 +2001,23 @@ VarDecl* PetScan::get_or_create_iterator_replacement( VarDecl* iterator_decl ) {
 	iterator_to_index_map[iterator_decl] = vd;
 }
 
+static CXXMethodDecl* find_size_method( Decl* decl  ) {
+
+	cerr << __PRETTY_FUNCTION__ << endl;
+	if ( auto specialization_decl = dyn_cast_or_null<ClassTemplateSpecializationDecl>( decl ) ) {
+		cerr << __PRETTY_FUNCTION__ << endl;
+		for ( auto cxx_method : specialization_decl->methods() ){
+			auto name = cxx_method->getDeclName().getAsString();
+			cerr << "method " << name << endl;
+			if ( name == "size" ) {
+				cerr << "found size method" << endl;
+				return cxx_method;
+			}
+		}
+	}
+	return nullptr;
+}
+
 // TODO needs information about the iteration direction ? 
 // TODO needs information about the iteration begin
 // TODO change name to: less then
@@ -2047,9 +2074,42 @@ PetScan::build_iterator_unequal_comparison( Expr* lhs, Expr* rhs ) {
 							auto op = pet_op_lt;
 							auto pet_lhs = extract_expr( lhs );
 
-							//auto pet_rhs = pet_expr_new_call(ctx, "x.size()", 0);
+							auto placeholder = createCallPlaceholder( "x.size()" );
+							//auto pet_rhs = pet_expr_new_call(ctx, placeholder.c_str(), 0);
+
+							// find the size method of the container beeing used 
+							CXXMethodDecl* size_method = nullptr; 
+							if ( auto decl_of_container = dyn_cast_or_null<VarDecl>(decl_ref_expr->getDecl()) ) {
+								cerr << "got decl of container" << endl;
+								if ( auto decl_of_container_type = decl_of_container->getType()->getAsCXXRecordDecl() ) {
+									cerr << "got decl of containers type " << endl;
+									decl_of_container_type->dump();
+
+									size_method = find_size_method( decl_of_container_type );
+									size_method->dump();
+								}
+							}
+							if ( !size_method ) return nullptr;
+
+							cerr << "new id with name " << placeholder << " and size_method " << size_method->getDeclName().getAsString() << endl; 
+							auto id = isl_id_alloc(ctx,  placeholder.c_str(), cast<NamedDecl>(size_method) );
+							auto space = isl_space_alloc(ctx, 0, 0, 0);
+							space = isl_space_set_tuple_id(space, isl_dim_out, id);
+							auto pet_rhs = pet_expr_from_index(isl_multi_pw_aff_zero(space));
+
+#if 0
+							// TODO get type size from <container>.size()
+							auto type_size = 64;
+							auto depth = 1;
+
+							pet_expr_set_type_size( pet_rhs , type_size );
+							pet_expr_access_set_depth( pet_rhs, depth );
+#endif
+							// TODO analyze the return type the the size_method
+							auto return_type = size_method->getReturnType();
+							pet_rhs = extract_access_expr( return_type, pet_rhs );
 							// TODO fill with call to <container>.size()
-#if 1
+#if 0
 							unsigned int length = 1000;
 							auto isl_int = isl_val_int_from_ui( ctx, length );
 							auto pet_rhs = pet_expr_new_int( isl_int );
