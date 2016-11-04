@@ -660,11 +660,32 @@ struct PetASTConsumer : public ASTConsumer {
 		if (scops.list.size() == 0)
 			return;
 
-		start = SM.getFileOffset(fd->getLocStart());
-		end = SM.getFileOffset(fd->getLocEnd());
+		cout << "start function decl " << fd->getLocStart().printToString(SM) << endl;
+		cout << "end   function decl " << fd->getLocEnd().printToString(SM) << endl;
+
+
+		// this starting location is relative to the file it was written in
+		// if this is a macro like gtest declares its TEST headers it does not 
+		// work like expected
+		// TODO check whether we are in the same file
+
+		auto loc_start = fd->getLocStart();
+		auto loc_end = fd->getLocEnd();
+
+		auto expansion_loc_start = SM.getExpansionLoc(loc_start);
+		auto expansion_loc_end = SM.getExpansionLoc(loc_end);
+
+		start = SM.getFileOffset(expansion_loc_start);
+		end = SM.getFileOffset(expansion_loc_end);
+
+		cout << "start fd " << start << endl; 
+		cout << "end fd " << end << endl; 
 
 		for (it = scops.list.begin(); it != scops.list.end(); ++it) {
 			ScopLoc loc = *it;
+
+			cout << "start loc " << loc.start << endl; 
+			cout << "end loc " << loc.end << endl; 
 			if (!loc.end)
 				continue;
 			if (start > loc.end)
@@ -812,6 +833,7 @@ void Pet::pet_scop_extract_from_clang_ast(
     SourceLocation sloc = stmt->getLocStart();
     int line = SM.getExpansionLineNumber(sloc);
     sloc = translateLineCol(SM, SM.getFileID(sloc), line, 1);
+		cout << "from " << sloc.printToString(SM) << endl;
     scops->add_start(line, SM.getFileOffset(sloc));
   }
   // for the end of the statement
@@ -819,6 +841,7 @@ void Pet::pet_scop_extract_from_clang_ast(
     SourceLocation sloc = stmt->getLocEnd();
     int line = SM.getExpansionLineNumber(sloc);
     sloc = translateLineCol(SM, SM.getFileID(sloc), line + 1, 1);
+		cout << "to " << sloc.printToString(SM) << endl;
     scops->add_end(SM.getFileOffset(sloc));
   }
 

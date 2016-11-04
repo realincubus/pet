@@ -2474,7 +2474,11 @@ static bool isIteratorType( const Type* type_ptr ) {
   //std::cerr << "getTypeClassName " << type_ptr->getTypeClassName() << std::endl;
   //std::cerr << "sugared typename " << qt.getAsString() << std::endl;
   
-  //type_ptr->dump();
+  type_ptr->dump();
+	if ( auto typedef_type = dyn_cast_or_null<TypedefType>( type_ptr ) ) {
+		// call again with desugared type
+		return isIteratorType( typedef_type->desugar().getTypePtr() );
+	}
 
   if ( auto elaborated_type = dyn_cast_or_null<ElaboratedType>(type_ptr) ) {
     auto nested_name_specifier = elaborated_type->getQualifier();
