@@ -2481,33 +2481,33 @@ static bool isIteratorType( const Type* type_ptr ) {
 	}
 
   if ( auto elaborated_type = dyn_cast_or_null<ElaboratedType>(type_ptr) ) {
-    auto nested_name_specifier = elaborated_type->getQualifier();
+    if ( auto nested_name_specifier = elaborated_type->getQualifier() ) {
+			// check for the type beeing vector or array 
+			std::cerr << "pet nested name is "  << std::endl;
+			//nested_name_specifier->dump();
+			std::cerr << std::endl;
 
-    // check for the type beeing vector or array 
-    std::cerr << "pet nested name is "  << std::endl;
-    //nested_name_specifier->dump();
-    std::cerr << std::endl;
+			if ( nested_name_specifier->getKind() == NestedNameSpecifier::TypeSpec ) {
+				auto type = nested_name_specifier->getAsType();
+				if ( isRandomAccessStlType( type ) ) {
+					std::cerr << "pet the base type of this iterator is allowed" << std::endl;
 
-    if ( nested_name_specifier->getKind() == NestedNameSpecifier::TypeSpec ) {
-      auto type = nested_name_specifier->getAsType();
-      if ( isRandomAccessStlType( type ) ) {
-				std::cerr << "pet the base type of this iterator is allowed" << std::endl;
+					// check the named_type_qt for its name
+					auto named_type_qt = elaborated_type->getNamedType();
+					auto type = named_type_qt.getTypePtr();
 
-				// check the named_type_qt for its name
-				auto named_type_qt = elaborated_type->getNamedType();
-				auto type = named_type_qt.getTypePtr();
-
-					if ( named_type_qt.getAsString() == "iterator" ) {
-					std::cerr << "pet name of the elab types NamedType is iterator " << std::endl;
-					return true;
-				}else{
-					std::cerr << "pet name of the elab types NamedType is not iterator " << std::endl;
-					return false;
+						if ( named_type_qt.getAsString() == "iterator" ) {
+						std::cerr << "pet name of the elab types NamedType is iterator " << std::endl;
+						return true;
+					}else{
+						std::cerr << "pet name of the elab types NamedType is not iterator " << std::endl;
+						return false;
+					}
 				}
+			}else{
+				std::cerr << "pet kind is not a TypeSpec but " << nested_name_specifier->getKind() << std::endl;
+				return false;
 			}
-		}else{
-			std::cerr << "pet kind is not a TypeSpec but " << nested_name_specifier->getKind() << std::endl;
-			return false;
 		}
   }else{
     std::cerr << "pet is not a ElaboratedType" << std::endl;
