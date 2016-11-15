@@ -664,9 +664,26 @@ static bool isRecordTypeByName( const Type* type_ptr, std::string name ) {
 
   // get the declaration 
   auto* record_type = type_ptr->getAs<RecordType>();
-  auto* record_decl = record_type->getDecl();
+  if( auto* record_decl = record_type->getDecl() ) {
+    if ( record_decl->getQualifiedNameAsString() == name ) return true;
+  }
 
-  if ( record_decl->getQualifiedNameAsString() == name ) return true;
+  return false;
+}
+
+static bool isSmartPointerToArray( const Type* type_ptr ) {
+  // check for beeing a record type
+  if ( !type_ptr->isRecordType() ) return false;
+
+  // get the declaration 
+  auto* record_type = type_ptr->getAs<RecordType>();
+  if ( auto* record_decl = record_type->getDecl() ) {
+    cerr  << __PRETTY_FUNCTION__ << endl;
+    cerr  << "record is " << record_decl->getQualifiedNameAsString() << endl;
+    if ( record_decl->getQualifiedNameAsString() == "std::unique_ptr" || record_decl->getQualifiedNameAsString() == "std::shared_ptr" ){
+      return true;
+    }
+  }
 
   return false;
 }
@@ -679,11 +696,10 @@ static bool isStdArray( QualType qt ) {
   return isRecordTypeByName( qt.getTypePtr(), "std::array" );
 }
 
-
 static bool isRandomAccessStlType( const Type* type ) {
   return isRecordTypeByName( type, "std::array" ) || isRecordTypeByName( type, "std::vector" ) ||
          isRecordTypeByName( type, "std::__cxx11::basic_string" ) || isRecordTypeByName( type, "std::basic_string" ) ||
-	 isRecordTypeByName( type, "std::deque" );
+	        isRecordTypeByName( type, "std::deque" ) || isSmartPointerToArray( type );
 }
 
 static bool isRandomAccessStlType( QualType qt ) {
@@ -748,6 +764,13 @@ static int array_depth(const Type *type)
 	      // recurse into the next level
 	      return 1 + array_depth( qual_type.getTypePtr() ); 
 	    }
+      if ( isRecordTypeByName( qual_type.getTypePtr(), "std::unique_ptr" ) ){
+        cerr << "is unique_ptr getting argument" << endl;
+	      auto arg0 = tst->getArg(0);
+	      auto qual_type = arg0.getAsType();
+	      // recurse into the next level
+	      return 1 + array_depth( qual_type.getTypePtr() ); 
+      }
 	  }
 
 	  // check for a std::array
@@ -3739,6 +3762,7 @@ struct pet_scop *PetScan::extract_scop(__isl_take pet_tree *tree)
 	pet_context_free(pc);
 	std::cerr << __FILE__ << " " << __LINE__ << std::endl;
 
+        cerr << "returing scop " << scop << endl;
 	return scop;
 }
 

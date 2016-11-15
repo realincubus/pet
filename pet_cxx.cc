@@ -604,15 +604,25 @@ struct PetASTConsumer : public ASTConsumer {
 	 */
 	void call_fn(pet_scop *scop) {
 		std::cout << "in call_fn" << endl;
-		if (!scop)
-			return;
+		if (!scop){
+                  cerr << __PRETTY_FUNCTION__ << " no scop " << endl;
+		  return;
+                }
+                // TODO is modules are used something produces an error 
+                //      which leads clang to not generate warnings 
 		if (diags.hasErrorOccurred()) {
-			pet_scop_free(scop);
-			return;
+                  cerr << __PRETTY_FUNCTION__ << " error occurred " << endl;
+                  // TODO delete me:
+                  auto diag_client = diags.getClient();
+                  auto errors = diag_client->getNumErrors();
+                  cerr << "client says we have # " << errors << " errors" << endl;
+                  pet_scop_free(scop);
+                  return;
 		}
 		if (options->autodetect && scop->n_stmt == 0) {
-			pet_scop_free(scop);
-			return;
+                  cerr << __PRETTY_FUNCTION__ << " autodetect and 0 statements " << endl;
+                  pet_scop_free(scop);
+                  return;
 		}
 		std::cout << "in " << __LINE__ << endl;
 		scop->context = isl_set_intersect(scop->context,
@@ -696,6 +706,7 @@ struct PetASTConsumer : public ASTConsumer {
 				    isl_union_map_copy(vb), independent);
 			ps.diagnosticsEngine = &ast_context.getDiagnostics();
 			scop = ps.scan(fd);
+                        cerr << "got scop " << scop << endl;
 			call_fn(scop);
 			if ( scop ) {
 			  call_texts.reset(ps.name_to_text.release());
@@ -827,6 +838,13 @@ void Pet::pet_scop_extract_from_clang_ast(
   // fill the scop loc list with the information about this loop
   // first clear the list 
   scops->list.clear();
+
+  auto& diags = clang_ctx->getDiagnostics();
+  if ( diags.hasErrorOccurred() ){
+    cerr << "error has already occurred before pet has been run" << endl;
+  }else{
+    cerr << "no error has occurred pet is good to go" << endl;
+  }
 
   // for the start of the statement
   {
