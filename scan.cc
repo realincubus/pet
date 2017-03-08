@@ -1766,8 +1766,39 @@ __isl_give pet_expr *PetScan::extract_expr(CallExpr *expr)
 
 	fd = expr->getDirectCallee();
 	if (!fd) {
-		unsupported(expr);
-		return NULL;
+
+	  // patch for generic lambda 
+	  // if no direct callee declaration could be found 
+	  // this can mean that we are calling something from a generic lambda
+	  // the only thing we have is a name 
+	  
+	  auto callee = expr->getCallee();
+	  callee->dumpColor();
+	  if ( auto dep_scope_member_expr = dyn_cast_or_null<CXXDependentScopeMemberExpr>( callee ) ) {
+	    auto member = dep_scope_member_expr->getMember();
+	    std::cerr << member.getAsString() << std::endl;
+	    name = member.getAsString();
+	    if ( auto base = dep_scope_member_expr->getBase() ) {
+	      base->dumpColor();
+	      if ( auto decl_ref = dyn_cast_or_null<DeclRefExpr>( base ) ) {
+		if ( auto decl = decl_ref->getDecl() ) {
+		  decl->dumpColor();
+		  if ( auto type = decl->getType().getTypePtr() ) {
+		    type->dump();
+		  }
+		}
+	      }
+	    }
+	  }else{
+	    std::cerr << " is not a CXXDependentScopeMemberExpr " << std::endl;
+	  }
+
+
+	  // end patch
+
+	  unsupported(expr);
+	  expr->dumpColor();
+	  return NULL;
 	}
 
 	name = fd->getDeclName().getAsString();
@@ -1859,9 +1890,9 @@ __isl_give pet_expr *PetScan::extract_expr(CXXMemberCallExpr *expr)
 		return NULL;
 
 	for (int i = 0; i < n_arg; ++i) {
-		Expr *arg = expr->getArg(i);
-		res = pet_expr_set_arg(res, i,
-			    PetScan::extract_argument(fd, i, arg, !is_kill));
+	  Expr *arg = expr->getArg(i);
+	  res = pet_expr_set_arg(res, i,
+		      PetScan::extract_argument(fd, i, arg, !is_kill));
 	}
 
 	fd = get_summary_function(expr);
@@ -2369,6 +2400,13 @@ __isl_give pet_expr *PetScan::extract_expr(ExprWithCleanups *ewc)
   return extract_expr( expr );
 }
 
+
+__isl_give pet_expr *PetScan::extract_expr( SubstNonTypeTemplateParmExpr *expr){
+  std::cerr << __PRETTY_FUNCTION__ << std::endl;
+  auto replacement = expr->getReplacement();
+  return extract_expr( replacement );
+}
+
 /* Try and construct a pet_expr representing "expr".
  */
 __isl_give pet_expr *PetScan::extract_expr(Expr *expr )
@@ -2422,6 +2460,8 @@ __isl_give pet_expr *PetScan::extract_expr(Expr *expr )
 		}
 	case Stmt::MaterializeTemporaryExprClass:
 		return extract_expr( cast<MaterializeTemporaryExpr>( expr ) );
+	case Stmt::SubstNonTypeTemplateParmExprClass:
+		return extract_expr( cast<SubstNonTypeTemplateParmExpr>(expr) );
 	default:
 		unsupported_msg(expr, string(expr->getStmtClassName()));
 	}

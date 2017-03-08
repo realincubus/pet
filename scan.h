@@ -220,6 +220,7 @@ private:
 	__isl_give pet_expr *extract_expr(clang::ConditionalOperator *expr);
 	__isl_give pet_expr *extract_expr(clang::CallExpr *expr);
 	__isl_give pet_expr *extract_expr(clang::CStyleCastExpr *expr);
+	__isl_give pet_expr *extract_expr(clang::SubstNonTypeTemplateParmExpr *expr);
 	__isl_give pet_expr *extract_cxx_expr(clang::Expr *expr);
 	__isl_give pet_expr *extract_cxx_binary_operator(clang::CXXOperatorCallExpr *expr, clang::OverloadedOperatorKind ook);
 	__isl_give pet_expr *extract_cxx_unary_operator(clang::CXXOperatorCallExpr *expr, clang::OverloadedOperatorKind ook );
