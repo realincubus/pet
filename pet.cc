@@ -981,6 +981,13 @@ static void create_main_file_id(SourceManager &SM, const FileEntry *file)
 
 #endif
 
+static void set_invocation(CompilerInstance *Clang,
+  CompilerInvocation *invocation)
+{
+  Clang->setInvocation(std::make_shared<CompilerInvocation>(*invocation));
+}
+
+
 /* Add pet specific predefines to the preprocessor.
  * Currently, these are all pencil specific, so they are only
  * added if "pencil" is set.
@@ -1023,7 +1030,7 @@ static int foreach_scop_in_C_source(isl_ctx *ctx,
 	Diags.setSuppressSystemWarnings(true);
 	CompilerInvocation *invocation = construct_invocation(filename, Diags);
 	if (invocation)
-		Clang->setInvocation(invocation);
+		set_invocation(invocation);
 	Diags.setClient(construct_printer(Clang, options->pencil));
 	Clang->createFileManager();
 	Clang->createSourceManager(Clang->getFileManager());
