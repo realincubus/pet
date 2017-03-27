@@ -347,15 +347,30 @@ static bool isShadowing( NamedDecl* decl, DeclContext* dc ) {
  */
 static __isl_give isl_id *create_decl_id(isl_ctx *ctx, NamedDecl *decl)
 {
-	cerr << __PRETTY_FUNCTION__ << endl;
+  cerr << __PRETTY_FUNCTION__ << endl;
   auto *dc = decl->getDeclContext();
   if ( isShadowing( decl, dc ) ) {
     std::cerr << "decl " << decl->getName().str() << " is shadowing " << std::endl;
   }
-	cerr << "new id with name: " << decl->getName().str() << endl;
-	if ( auto value_decl = dyn_cast_or_null<ValueDecl>( decl ) ) {
-		cerr  << " and type " << value_decl->getType().getAsString() << endl;
-	}
+  cerr << "new id with name: " << decl->getName().str() << endl;
+  if ( auto value_decl = dyn_cast_or_null<ValueDecl>( decl ) ) {
+	  cerr  << " and type " << value_decl->getType().getAsString() << endl;
+  }
+  // TODO extra logic for references to reference variables
+  if ( auto value_decl = dyn_cast_or_null<ValueDecl>( decl ) ) {
+    // get the type 
+    if ( auto type = value_decl->getType().getTypePtr() ) {
+      if ( type->isReferenceType() ){
+	cerr << "is a reference type so create a decl to its left hand side of initialization ? " << endl;
+	// better direct the analysis to follow to the left hande side;
+      }else{
+	cerr << "is not a refrence type" << endl;
+	type->dump();
+      }
+    }
+  }
+
+
   return isl_id_alloc(ctx, decl->getName().str().c_str(), register_user_data_type((void*)decl, ITI_NamedDecl) );
 }
 
@@ -716,6 +731,7 @@ static int array_depth(const Type *type)
 
 	// if it is a reference -> unwrap this one level
 	if (type->isLValueReferenceType() ){
+	  cerr << "is a l value reference type " << endl;
 	  auto lvrt = dyn_cast_or_null<LValueReferenceType>( type );
 	  if ( !lvrt ) {
 	    std::cerr << "not implemented" << std::endl;
@@ -866,6 +882,32 @@ static int extract_depth(__isl_keep pet_expr *expr)
 	return depth;
 }
 
+
+
+// TODO resolve all references as if they were their the rhs of their initialization
+Expr* isReference( DeclRefExpr* dref ){
+  std::cerr << __PRETTY_FUNCTION__ << std::endl;
+  if ( auto decl = dref->getDecl() ) {
+    cerr << "got the decl" << endl;
+    if ( auto var_decl = dyn_cast_or_null<VarDecl>(decl) ) {
+      cerr << "is a var decl" << endl;
+      if ( auto type = var_decl->getType().getTypePtr() ) {
+	cerr << "got the type" << endl;
+	if ( type->isReferenceType() ) {
+	  cerr << "is a ref type" << endl;
+	  if ( var_decl->hasInit() ) {
+	    cerr << "has a init" << endl;
+	    return var_decl->getInit();
+	  }else{
+	    cerr << "a reference has to have a initializer something went wrong here" << endl;
+	  }
+	}
+      }
+    }
+  }
+  return nullptr;
+}
+
 /* Construct a pet_expr representing an index expression for an access
  * to the variable referenced by "expr".
  *
@@ -875,7 +917,10 @@ static int extract_depth(__isl_keep pet_expr *expr)
 __isl_give pet_expr *PetScan::extract_index_expr(DeclRefExpr *expr)
 {
   std::cerr << __PRETTY_FUNCTION__ << std::endl;
-	return extract_index_expr(expr->getDecl());
+  if ( auto to_expr = isReference( expr )) {
+    return extract_index_expr( to_expr );
+  }
+  return extract_index_expr(expr->getDecl());
 }
 
 /* Construct a pet_expr representing an index expression for an access
@@ -1551,6 +1596,7 @@ __isl_give pet_expr *PetScan::extract_access_expr(QualType qt,
 	std::cerr << "done " << __PRETTY_FUNCTION__ << std::endl;
 	return index;
 }
+
 
 /* Extract an index expression from "expr" and then convert it into
  * an access pet_expr.
