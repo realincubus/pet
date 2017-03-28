@@ -1030,7 +1030,7 @@ static int foreach_scop_in_C_source(isl_ctx *ctx,
 	Diags.setSuppressSystemWarnings(true);
 	CompilerInvocation *invocation = construct_invocation(filename, Diags);
 	if (invocation)
-		set_invocation(invocation);
+		set_invocation(Clang, invocation);
 	Diags.setClient(construct_printer(Clang, options->pencil));
 	Clang->createFileManager();
 	Clang->createSourceManager(Clang->getFileManager());
