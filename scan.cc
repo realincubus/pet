@@ -1973,6 +1973,18 @@ __isl_give pet_expr *PetScan::extract_expr(IntegerLiteral *expr)
 	return pet_expr_new_int(extract_int(expr));
 }
 
+/* Construct a pet_expr representing an integer.
+ */
+__isl_give pet_expr *PetScan::extract_expr(CXXBoolLiteralExpr *expr)
+{
+  if ( expr->getValue() ) {
+    return pet_expr_new_int(isl_val_one(ctx));
+  }else{
+    return pet_expr_new_int(isl_val_zero(ctx));
+  }
+  return nullptr;
+}
+
 /* Construct a pet_expr representing the integer enum constant "ecd".
  */
 __isl_give pet_expr *PetScan::extract_expr(EnumConstantDecl *ecd)
@@ -2477,6 +2489,8 @@ __isl_give pet_expr *PetScan::extract_expr(Expr *expr )
 	case Stmt::DeclRefExprClass:
 	case Stmt::MemberExprClass:
 		return extract_access_expr(expr);
+        case Stmt::CXXBoolLiteralExprClass:
+                return extract_expr(cast<CXXBoolLiteralExpr>(expr));
 	case Stmt::IntegerLiteralClass:
 		return extract_expr(cast<IntegerLiteral>(expr));
 	case Stmt::FloatingLiteralClass:
