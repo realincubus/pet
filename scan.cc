@@ -2592,10 +2592,6 @@ static bool isIteratorType( const Type* type_ptr ) {
   if ( auto elaborated_type = dyn_cast_or_null<ElaboratedType>(type_ptr) ) {
     if ( auto nested_name_specifier = elaborated_type->getQualifier() ) {
 			// check for the type beeing vector or array 
-			std::cerr << "pet nested name is "  << std::endl;
-			//nested_name_specifier->dump();
-			std::cerr << std::endl;
-
 			if ( nested_name_specifier->getKind() == NestedNameSpecifier::TypeSpec ) {
 				auto type = nested_name_specifier->getAsType();
 				if ( isRandomAccessStlType( type ) ) {
@@ -2603,13 +2599,25 @@ static bool isIteratorType( const Type* type_ptr ) {
 
 					// check the named_type_qt for its name
 					auto named_type_qt = elaborated_type->getNamedType();
-					auto type = named_type_qt.getTypePtr();
+                                        auto split = named_type_qt.split();
+                                        auto type = split.Ty;
+                                        type->dump();
+                                        if ( auto typedef_type = dyn_cast_or_null<TypedefType>(type)){
+                                          if ( auto typedef_type_decl = typedef_type->getDecl() ){
+                                            auto qt = typedef_type_decl->getUnderlyingType();
+                                            cout << "my name is " << typedef_type_decl->getNameAsString() << endl;
+                                            if ( typedef_type_decl->getNameAsString() == "iterator" )  {
+						std::cerr << "pet: name of the typedef type hiding the iterator is iterator " << std::endl;
+						return true;
+                                            }
+                                          }
+                                        }
 
-						if ( named_type_qt.getAsString() == "iterator" ) {
+					if ( named_type_qt.getAsString() == "iterator" ) {
 						std::cerr << "pet name of the elab types NamedType is iterator " << std::endl;
 						return true;
 					}else{
-						std::cerr << "pet name of the elab types NamedType is not iterator " << std::endl;
+						std::cerr << "pet name of the elab types NamedType is not iterator but " << named_type_qt.getAsString() << std::endl;
 						return false;
 					}
 				}
