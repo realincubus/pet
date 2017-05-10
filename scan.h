@@ -170,6 +170,7 @@ private:
 	__isl_give pet_tree *extract(clang::LabelStmt *stmt);
 	__isl_give pet_tree *extract(clang::Decl *decl);
 	__isl_give pet_tree *extract(clang::DeclStmt *expr);
+	__isl_give pet_tree *extract(clang::ReturnStmt *expr);
 
 	__isl_give pet_loc *construct_pet_loc(clang::SourceRange range,
 		bool skip_semi);
@@ -269,7 +270,8 @@ private:
 	void unsupported_with_extra_string(clang::Stmt *stmt, std::string extra );
 	void warning_assume_with_extra_string(clang::Stmt *stmt, std::string extra );
 	void note_understood_with_extra_string(clang::Stmt *stmt, std::string extra);
-	void report_unsupported_statement_type(clang::Stmt *stmt);
+	//void report_unsupported_statement_type(clang::Stmt *stmt);
+	void report_unsupported_statement_type_with_extra_string(clang::Stmt *stmt, std::string extra);
 	void report_prototype_required(clang::Stmt *stmt);
 	void report_missing_increment(clang::Stmt *stmt);
 	void report_missing_summary_function(clang::Stmt *stmt);

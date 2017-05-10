@@ -473,6 +473,7 @@ void PetScan::note_understood_with_extra_string(Stmt *stmt, std::string extra)
 //      when ycm starts to print notes swtich to DiasgnosticsEnginine::Note
 #define note_understood( x, y ) note_understood_with_extra_string( (x), string(__FILE__) + string(" ") + to_string(__LINE__) + string(" ") + y )
 
+#if 0
 /* Report an unsupported statement type, unless autodetect is set.
  */
 void PetScan::report_unsupported_statement_type(Stmt *stmt)
@@ -482,6 +483,17 @@ void PetScan::report_unsupported_statement_type(Stmt *stmt)
 				   "this type of statement is not supported");
 	report(stmt, id);
 }
+#endif
+
+void PetScan::report_unsupported_statement_type_with_extra_string(Stmt *stmt, std::string extra )
+{
+	DiagnosticsEngine &diag = getDiagnostics();
+	unsigned id = diag.getCustomDiagID(DiagnosticsEngine::Warning,
+				   "this type of statement is not supported");
+	report(stmt, id, extra );
+}
+
+#define report_unsupported_statement_type( x ) report_unsupported_statement_type_with_extra_string( (x), string(__FILE__) + string(" ") + to_string(__LINE__) + string(" ") )
 
 /* Report a missing prototype, unless autodetect is set.
  */
@@ -3418,6 +3430,15 @@ __isl_give pet_tree *PetScan::update_loc(__isl_take pet_tree *tree, Stmt *stmt)
 	return tree;
 }
 
+
+// extract the expression that would be returned by this statement 
+// since we are just interested in the possible influence of return on function calls
+// TODO check that this is not possible in loops but just in function summaries
+__isl_give pet_tree *PetScan::extract(clang::ReturnStmt *expr){
+  auto ret = expr->getRetValue();
+  return extract(ret);
+}
+
 /* Try and construct a pet_tree corresponding to "stmt".
  *
  * If "stmt" is a compound statement, then "skip_declarations"
@@ -3473,6 +3494,9 @@ __isl_give pet_tree *PetScan::extract(Stmt *stmt, bool skip_declarations)
 		tree = extract(cast<DeclStmt>(stmt));
 		std::cerr << "tree for decl stmt " << tree << std::endl;
 		break;
+        case Stmt::ReturnStmtClass:
+                tree = extract(cast<ReturnStmt>(stmt));
+                break;
 	default:
 		report_unsupported_statement_type(stmt);
 		return NULL;
