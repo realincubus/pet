@@ -3135,26 +3135,8 @@ __isl_give pet_tree *PetScan::extract_for(ForStmt *stmt)
 	return tree;
 }
 
-/* Construct a pet_tree for a for statement.
- * The for loop is required to be of one of the following forms
- *
- *	for (i = init; condition; ++i)
- *	for (i = init; condition; --i)
- *	for (i = init; condition; i += constant)
- *	for (i = init; condition; i -= constant)
- *
- * We extract a pet_tree for the body and then include it in a pet_tree
- * of type pet_tree_for.
- *
- * As a special case, we also allow a for loop of the form
- *
- *	for (;;)
- *
- * in which case we return a pet_tree of type pet_tree_infinite_loop.
- *
- * If we were only able to extract part of the body, then simply
- * return that part.
- */
+
+// TODO continue canonicalize this to a normal loop via index
 __isl_give pet_tree *PetScan::extract_range_for(CXXForRangeStmt *stmt)
 {
 	std::cerr << __PRETTY_FUNCTION__ << std::endl;
@@ -3173,8 +3155,8 @@ __isl_give pet_tree *PetScan::extract_range_for(CXXForRangeStmt *stmt)
 
 	init = stmt->getRangeInit();
 	if (!init) {
-		unsupported(stmt);
-		return NULL;
+          unsupported(stmt);
+          return NULL;
 	}
 
 #if 0
