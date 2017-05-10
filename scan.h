@@ -225,6 +225,7 @@ private:
 	__isl_give pet_expr *extract_cxx_expr(clang::Expr *expr);
 	__isl_give pet_expr *extract_cxx_binary_operator(clang::CXXOperatorCallExpr *expr, clang::OverloadedOperatorKind ook);
 	__isl_give pet_expr *extract_cxx_unary_operator(clang::CXXOperatorCallExpr *expr, clang::OverloadedOperatorKind ook );
+        __isl_give pet_expr *extract_expr_from_stream(clang::CXXOperatorCallExpr *op);
 
 	__isl_give pet_expr *extract_expr(clang::MaterializeTemporaryExpr *expr);
 	__isl_give pet_expr *extract_expr(clang::CXXMemberCallExpr *expr);
@@ -261,6 +262,7 @@ private:
 	pet_expr* iterator_init_transformation( clang::Expr* rhs );
 	clang::VarDecl* get_or_create_iterator_replacement( clang::VarDecl* iterator_decl );
 	std::string createCallPlaceholder( std::string call_text );
+        void check_stream_reference( clang::DeclRefExpr* expr );
 
 	void report(clang::Stmt *stmt, unsigned id, std::string debug_information = "" );
 	void unsupported(clang::Stmt *stmt);

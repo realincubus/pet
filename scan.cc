@@ -183,6 +183,8 @@ static enum pet_op_type OverloadedOperatorKind2pet_op_type(OverloadedOperatorKin
 		return pet_op_lt;
 	case OO_PlusPlus:
 		return pet_op_post_inc;
+	case OO_LessLess:
+		return pet_op_shl;
 #if 0
 	case BO_Add:
 		return pet_op_add;
@@ -908,6 +910,19 @@ Expr* isReference( DeclRefExpr* dref ){
   return nullptr;
 }
 
+// TODO if it is a reference to  cout cerr ... issue a warning
+void PetScan::check_stream_reference( DeclRefExpr* expr ){
+  auto value_decl = expr->getDecl();
+  // check for certain names and type std::ostream
+
+  if ( value_decl->getNameAsString() == "cout" || value_decl->getNameAsString() == "cerr" ) { // TODO more
+    auto qual_type = value_decl->getType();
+    if ( qual_type.getAsString() == "std::ostream" ) {
+      warning_assume_with_extra_string( expr, "stream will get mixed up if parallelized" ); 
+    }
+  }
+}
+
 /* Construct a pet_expr representing an index expression for an access
  * to the variable referenced by "expr".
  *
@@ -920,6 +935,7 @@ __isl_give pet_expr *PetScan::extract_index_expr(DeclRefExpr *expr)
   if ( auto to_expr = isReference( expr )) {
     return extract_index_expr( to_expr );
   }
+  check_stream_reference( expr );
   return extract_index_expr(expr->getDecl());
 }
 
@@ -934,6 +950,7 @@ __isl_give pet_expr *PetScan::extract_index_expr(ValueDecl *decl)
   std::cerr << __PRETTY_FUNCTION__ << std::endl;
 	isl_id *id;
 	isl_space *space;
+
 
 	decl->dump();
 
@@ -2415,6 +2432,33 @@ __isl_give pet_expr *PetScan::extract_cxx_unary_operator(CXXOperatorCallExpr *ex
 }
 
 
+__isl_give pet_expr *PetScan::extract_expr_from_stream(CXXOperatorCallExpr *expr ){
+  // TODO check arguments of the call
+  // TODO shift operators are read from right to left
+  
+  if ( expr->getNumArgs() == 2 ) {
+    auto stream = expr->getArg(0);
+    std::cout << "stream: " << std::endl; 
+    stream->dump();
+
+    auto lhs = extract_expr( stream );
+
+    auto element = expr->getArg(1);
+    std::cout << "element: " << std::endl;
+    element->dump();
+    auto rhs = extract_expr(element);
+
+    auto type_size = get_type_size(expr->getType(), ast_context);
+    auto ook = expr->getOperator();
+    auto op = OverloadedOperatorKind2pet_op_type(ook);
+
+    return pet_expr_new_binary(type_size, op, lhs, rhs);
+  }
+
+  std::cout << "could not extract anything from this stream" << std::endl;
+  return nullptr;
+}
+
 /* Construct a pet_expr representing a CXXOperatorCallExpr.
  */
 // TODO issue a warning to tell the user that we assume it has no side effects
@@ -2430,12 +2474,14 @@ __isl_give pet_expr *PetScan::extract_cxx_expr(Expr *op)
       return extract_cxx_binary_operator(cxx_operator,cxx_operator->getOperator());
     case OO_Subscript:
       return extract_access_expr(op);
+    case OO_LessLess:
+      return extract_expr_from_stream(cxx_operator);
     case OO_Star:
       return extract_access_expr(op);
 		case OO_ExclaimEqual:
       return extract_cxx_binary_operator(cxx_operator,cxx_operator->getOperator());
     default:
-      unsupported_msg( op , string ("cannot handle this operator") + to_string(cxx_operator->getOperator()) );
+      unsupported_msg( op , string ("cannot handle this operator: ") + to_string(cxx_operator->getOperator()) );
   }
   return nullptr;
 }
