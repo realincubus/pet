@@ -264,6 +264,37 @@ private:
 	clang::VarDecl* get_or_create_iterator_replacement( clang::VarDecl* iterator_decl );
 	std::string createCallPlaceholder( std::string call_text );
         void check_stream_reference( clang::DeclRefExpr* expr );
+        std::string get_container_name_from_iterator( clang::Expr* expr);
+        clang::VarDecl* isIterator( clang::Expr* expr);
+        clang::VarDecl* extract_container( clang::Expr* e );
+        clang::DeclRefExpr* build_base_expression_by_initializer( clang::Expr* e );
+        clang::DeclRefExpr* build_index_expression_by_decl( clang::Expr* e );
+        bool isStdContainerIteratorCreator( std::string name );
+        bool isIteratorType( const clang::Type* type_ptr );
+        bool isIteratorType( clang::QualType qt );
+        int get_type_size(clang::QualType qt, clang::ASTContext &ast_context);
+        int get_type_size(clang::ValueDecl *decl);
+        struct pet_scop *add_parameter_bounds(struct pet_scop *scop);
+
+        struct pet_scop *add_type(isl_ctx *ctx, struct pet_scop *scop,
+            clang::TypedefNameDecl *decl, clang::ASTContext &ast_context, PetTypes &types,
+            std::set<clang::TypeDecl *> &types_done);
+
+        struct pet_scop *add_type(isl_ctx *ctx, struct pet_scop *scop,
+            clang::RecordDecl *decl, clang::ASTContext &ast_context, PetTypes &types,
+            std::set<clang::TypeDecl *> &types_done);
+
+        struct pet_scop *add_field_types(isl_ctx *ctx, struct pet_scop *scop,
+            clang::RecordDecl *decl, clang::ASTContext &ast_context, PetTypes &types,
+            std::set<clang::TypeDecl *> &types_done);
+
+
+        __isl_give isl_set *set_parameter_bounds(__isl_take isl_set *set,
+          unsigned pos, clang::ValueDecl *decl);
+
+
+        clang::VarDecl* extract_member_call( clang::Expr* e );
+        clang::VarDecl* extract_container_from_instance( clang::Expr* instance, clang::CXXMemberCallExpr* member_call );
 
 	void report(clang::Stmt *stmt, unsigned id, std::string debug_information = "" );
 	void unsupported(clang::Stmt *stmt);

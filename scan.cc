@@ -71,8 +71,6 @@ using namespace std;
 using namespace clang;
 
 
-static bool isIteratorType( QualType qt );
-static bool isIteratorType( const Type* type );
 static Expr* ignoreImplicitCast( Expr* e ) {
 	if ( auto ice = dyn_cast_or_null<ImplicitCastExpr>( e ) ) {
 		cerr << "is implicit cast" << endl;
@@ -80,9 +78,9 @@ static Expr* ignoreImplicitCast( Expr* e ) {
 	}
 	return e;
 }
-static bool isStdContainerIteratorCreator( std::string name );
-static DeclRefExpr* build_base_expression_by_initializer( Expr* e ) ;
-static DeclRefExpr* build_index_expression_by_decl( Expr* e );
+//static bool isStdContainerIteratorCreator( std::string name );
+//static DeclRefExpr* build_base_expression_by_initializer( Expr* e ) ;
+//static DeclRefExpr* build_index_expression_by_decl( Expr* e );
 
 static enum pet_op_type UnaryOperatorKind2pet_op_type(UnaryOperatorKind kind)
 {
@@ -611,7 +609,7 @@ __isl_give pet_expr *PetScan::extract_expr(const llvm::APInt &val)
  * if it is an integer type.  Otherwise return 0.
  * If qt is signed then return the opposite of the number of bits.
  */
-static int get_type_size(QualType qt, ASTContext &ast_context)
+int PetScan::get_type_size(QualType qt, ASTContext &ast_context)
 {
 	std::cerr << __PRETTY_FUNCTION__ << std::endl;
 	int size;
@@ -637,7 +635,7 @@ static int get_type_size(QualType qt, ASTContext &ast_context)
  * if it is an integer type.  Otherwise return 0.
  * If qt is signed then return the opposite of the number of bits.
  */
-static int get_type_size(ValueDecl *decl)
+int PetScan::get_type_size(ValueDecl *decl)
 {
 	if ( FunctionDecl* fdecl = dyn_cast_or_null<FunctionDecl>( decl ) ){
 		cerr << "getting type size for function " << endl;
@@ -650,7 +648,7 @@ static int get_type_size(ValueDecl *decl)
 
 /* Bound parameter "pos" of "set" to the possible values of "decl".
  */
-static __isl_give isl_set *set_parameter_bounds(__isl_take isl_set *set,
+__isl_give isl_set *PetScan::set_parameter_bounds(__isl_take isl_set *set,
 	unsigned pos, ValueDecl *decl)
 {
 	int type_size;
@@ -1058,8 +1056,7 @@ __isl_give pet_expr *PetScan::extract_index_expr(CallExpr *call)
   std::cerr << "call_text " << call_text << std::endl;
 #endif
 
-  // TODO create a map between calls and their placeholder
-  
+  // create a map between calls and their placeholder
   string placeholder = createCallPlaceholder( call_text );
 
   // create a decl id from this call
@@ -1231,28 +1228,28 @@ __isl_give pet_expr *PetScan::extract_index_expr_unary(CXXOperatorCallExpr *expr
 	// if ook is OO_Star and the accessed element is a iterator 
 	// generate an array access 
 	if ( ook == OO_Star ) {
-		cerr << "ook is a OO_Star " << endl;
-		auto expr = ignoreImplicitCast( arg0 );
+          cerr << "ook is a OO_Star " << endl;
+          auto expr = ignoreImplicitCast( arg0 );
 
 	  if ( isIteratorType( expr->getType() ) ) {
 
-			cerr << "OO_Star operation dereferences an iterator" << std::endl;
+            cerr << "OO_Star operation dereferences an iterator" << std::endl;
 	    auto iterator = expr;
 	    auto base_expr = build_base_expression_by_initializer( iterator );
-			base_expr->dump();
-			cerr << "extracting from base_expr " << endl;
-			if ( auto pet_base_expr = extract_index_expr( base_expr ) ) {
-				DeclRefExpr* index = build_index_expression_by_decl( iterator );
-				index->dump();
-				cerr << "extracting from index_expr " << endl;
-				if ( auto pet_index_expr = extract_index_expr( index ) ) {
-					cerr << "got base and index extracted " << endl;
-					auto access_by_subscript = pet_expr_access_subscript(pet_base_expr, pet_index_expr);
-					pet_expr_dump( access_by_subscript );
-					return access_by_subscript;
-				}
-			}
-	  }
+            base_expr->dump();
+            cerr << "extracting from base_expr " << endl;
+            if ( auto pet_base_expr = extract_index_expr( base_expr ) ) {
+                DeclRefExpr* index = build_index_expression_by_decl( iterator );
+                index->dump();
+                cerr << "extracting from index_expr " << endl;
+                if ( auto pet_index_expr = extract_index_expr( index ) ) {
+                        cerr << "got base and index extracted " << endl;
+                        auto access_by_subscript = pet_expr_access_subscript(pet_base_expr, pet_index_expr);
+                        pet_expr_dump( access_by_subscript );
+                        return access_by_subscript;
+                }
+            }
+          }
 	}
 
 	return nullptr;
@@ -2099,38 +2096,42 @@ bool isCompoundAssignmentOp( OverloadedOperatorKind ook ) {
 }
 
 // if e is a member call expression
-// if e is a template function call expression 
-// TODO test this with std::begin( constant array ) 
-VarDecl* extract_member_call( Expr* e ) {
-	if ( auto member_call = dyn_cast_or_null<CXXMemberCallExpr>( e ) ) {
-		cerr << "container begin is referenced by a CXXMemberCallExpr" << endl;
+// if e is a template function call expression
+// TODO test this with std::begin( constant array )
+VarDecl *PetScan::extract_member_call(Expr *e) {
+  if (auto member_call = dyn_cast_or_null<CXXMemberCallExpr>(e)) {
+    cerr << "container begin is referenced by a CXXMemberCallExpr" << endl;
+    if (auto instance = member_call->getImplicitObjectArgument()) {
+      cerr << " implicit object argument " << instance << endl;
+      if (auto decl_ref_expr = dyn_cast_or_null<DeclRefExpr>(instance)) {
+        auto type = decl_ref_expr->getType().getTypePtr();
 
-		if ( auto instance = member_call->getImplicitObjectArgument() ) {
-			cerr << " implicit object argument " << endl;
-			if ( auto decl_ref_expr = dyn_cast_or_null<DeclRefExpr>( instance ) ) {
-				auto type = decl_ref_expr->getType().getTypePtr();
+        auto fd = member_call->getDirectCallee();
+        auto name = fd->getDeclName().getAsString();
+        cerr << "function called is " << name << endl;
 
-				auto fd = member_call->getDirectCallee();
-				auto name = fd->getDeclName().getAsString();
-				cerr << "function called is " << name << endl;
+        // TODO if the function is one of the iterator functions and the
+        // instance called is a random access container return the containers
+        // decl
+        if (isRandomAccessStlType(type) &&
+            isStdContainerIteratorCreator(name)) {
+          cerr << "is container and call to begin end rbegin ... " << endl;
+          if (auto var_decl = dyn_cast_or_null<VarDecl>(decl_ref_expr->getDecl())) {
+            return var_decl;
+          }
+        }
+      } else {
+        cerr << "implicit object argument is not followed by a decl_ref_expr but:" << endl;
+        instance->dump();
+      }
+    }
+  } else {
+    e->dump();
+  }
 
-				// TODO if the function is one of the iterator functions and the instance 
-				// called is a random access container return the containers decl
-				if ( isRandomAccessStlType( type ) && isStdContainerIteratorCreator( name ) ){
-					cerr	<< "is container and call to begin end rbegin ... " << endl;
-					if ( auto var_decl = dyn_cast_or_null<VarDecl>( decl_ref_expr->getDecl() ) ) {
-						return var_decl;
-					}
-				}	
-			}
-		}
-	}else{
-		e->dump();
-	}
-
-	// to catch containers referenced via std::begin( container ) 
+  return nullptr;
+  // to catch containers referenced via std::begin( container )
 }
-
 
 VarDecl* PetScan::get_or_create_iterator_replacement( VarDecl* iterator_decl ) {
 	auto item = iterator_to_index_map.find( iterator_decl ); 
@@ -2159,116 +2160,142 @@ static CXXMethodDecl* find_size_method( Decl* decl  ) {
 	return nullptr;
 }
 
+std::string 
+PetScan::get_container_name_from_iterator( Expr* expr ) {
+  if ( auto impl_cast = ignoreImplicitCast( expr ) ){ 
+    if ( auto decl_ref_expr = dyn_cast_or_null<DeclRefExpr>(impl_cast) ){
+      if ( auto decl = decl_ref_expr->getDecl() ) {
+        if ( auto var_decl = dyn_cast_or_null<VarDecl>( decl ) ) {
+          if ( var_decl->hasInit() ) {
+            auto init = var_decl->getInit();
+            if ( auto container_decl = extract_container( init ) ) {
+              return container_decl->getNameAsString();
+            }
+          }
+        }
+      }
+    }
+  }
+  return "";
+}
+
+
+// check lhs for beeing an iterator
+VarDecl*
+PetScan::isIterator(Expr* expr){
+  if ( auto impl_cast = ignoreImplicitCast( expr ) ){ 
+          if ( auto decl_ref_expr = dyn_cast_or_null<DeclRefExpr>(impl_cast) ){
+                  if ( auto decl = decl_ref_expr->getDecl() ) {
+                          auto type = decl->getType();
+                          if ( isIteratorType( type ) ) {
+                            return (VarDecl*)decl;
+                          }
+                  }
+          }else{
+                  cerr << " not a declref " << endl;
+                  expr->dump();
+          }
+  }
+  return nullptr;
+};
+
+
 // TODO needs information about the iteration direction ? 
-// TODO needs information about the iteration begin
 // TODO change name to: less then
 pet_expr* 
 PetScan::build_iterator_unequal_comparison( Expr* lhs, Expr* rhs ) {
 	cerr << __PRETTY_FUNCTION__ << endl;
 	
 	bool is_lhs_it = false;
-	VarDecl* iterator_decl = nullptr;
+        if ( auto iterator_decl = isIterator( lhs ) ) {
 
-	// check lhs for beeing an iterator
-	auto check_it = [&](Expr* expr){
-		if ( auto impl_cast = ignoreImplicitCast( expr ) ){ 
-			if ( auto decl_ref_expr = dyn_cast_or_null<DeclRefExpr>(impl_cast) ){
-				if ( auto decl = decl_ref_expr->getDecl() ) {
-					auto type = decl->getType();
-					if ( isIteratorType( type ) ) {
-						iterator_decl = (VarDecl*)decl;
-						return true;	
-					}
-				}
-			}else{
-				cerr << " not a declref " << endl;
-				expr->dump();
-			}
-		}
-		return false;
-	};
+          auto container_name = get_container_name_from_iterator( lhs );
 
-	is_lhs_it = check_it( lhs );
-	
-	cerr << "staring to analyze rhs"<< endl;
-	rhs->dump();
-  // TODO rhs is a call to mostly end rend cend ... 
-	if ( auto temporary_expression = dyn_cast_or_null<MaterializeTemporaryExpr>( rhs ) ){
-		cerr << __LINE__ << endl;
-		if ( auto ice = ignoreImplicitCast( temporary_expression->GetTemporaryExpr() ) ){
-			cerr << __LINE__ << endl;
-			ice->dump();
-			if ( auto cxx_member_call_expr = dyn_cast_or_null<CXXMemberCallExpr>( ice ) ) {
-				cerr << __LINE__ << endl;
-				if ( auto instance = cxx_member_call_expr->getImplicitObjectArgument() ) {
-					cerr << __LINE__ << endl;
+          if ( container_name == "" ) {
+            report_unsupported_statement_type_with_extra_string( lhs, "could not infer the name of the container from its declaration use RAII" );
+            return nullptr;
+          }
 
-					// for the case the container was referenced by its instance and .begin() .end() ...
-					if ( auto decl_ref_expr = dyn_cast_or_null<DeclRefExpr>( instance ) ) {
-						cerr << __LINE__ << endl;
-						auto md = cxx_member_call_expr->getDirectCallee();
-						auto name = md->getDeclName().getAsString();
-						if ( name == "end" ) {
-							cerr << "name of the function called on this object is 'end' " << endl;
-							
-							// TODO CRITICAL you have to check for the instances type to be a random access container
-							auto op = pet_op_lt;
-							auto pet_lhs = extract_expr( lhs );
+          cout << "container name is " << container_name << endl;
+          
+          cerr << "staring to analyze rhs"<< endl;
+          rhs->dump();
+          if ( auto temporary_expression = dyn_cast_or_null<MaterializeTemporaryExpr>( rhs ) ){
+                  cerr << __LINE__ << endl;
+                  if ( auto ice = ignoreImplicitCast( temporary_expression->GetTemporaryExpr() ) ){
+                          cerr << __LINE__ << endl;
+                          ice->dump();
+                          if ( auto cxx_member_call_expr = dyn_cast_or_null<CXXMemberCallExpr>( ice ) ) {
+                                  cerr << __LINE__ << endl;
+                                  if ( auto instance = cxx_member_call_expr->getImplicitObjectArgument() ) {
+                                          cerr << __LINE__ << endl;
 
-							auto placeholder = createCallPlaceholder( "x.size()" );
-							//auto pet_rhs = pet_expr_new_call(ctx, placeholder.c_str(), 0);
+                                          // for the case the container was referenced by its instance and .begin() .end() ...
+                                          if ( auto decl_ref_expr = dyn_cast_or_null<DeclRefExpr>( instance ) ) {
+                                                  cerr << __LINE__ << endl;
+                                                  auto md = cxx_member_call_expr->getDirectCallee();
+                                                  auto name = md->getDeclName().getAsString();
+                                                  if ( name == "end" || name == "cend" ) {
+                                                          cerr << "name of the function called on this object is 'end' " << endl;
+                                                          
+                                                          // TODO CRITICAL you have to check for the instances type to be a random access container
+                                                          auto pet_lhs = extract_expr( lhs );
 
-							// find the size method of the container beeing used 
-							CXXMethodDecl* size_method = nullptr; 
-							if ( auto decl_of_container = dyn_cast_or_null<VarDecl>(decl_ref_expr->getDecl()) ) {
-								cerr << "got decl of container" << endl;
-								if ( auto decl_of_container_type = decl_of_container->getType()->getAsCXXRecordDecl() ) {
-									cerr << "got decl of containers type " << endl;
-									decl_of_container_type->dump();
+                                                          auto max_function = container_name + ".size()";
+                                                          auto placeholder = createCallPlaceholder( max_function );
 
-									size_method = find_size_method( decl_of_container_type );
-									size_method->dump();
-								}
-							}
-							if ( !size_method ) return nullptr;
+                                                          // find the size method of the container beeing used 
+                                                          CXXMethodDecl* size_method = nullptr; 
+                                                          if ( auto decl_of_container = dyn_cast_or_null<VarDecl>(decl_ref_expr->getDecl()) ) {
+                                                                  cerr << "got decl of container" << endl;
+                                                                  if ( auto decl_of_container_type = decl_of_container->getType()->getAsCXXRecordDecl() ) {
+                                                                          cerr << "got decl of containers type " << endl;
+                                                                          decl_of_container_type->dump();
 
-							cerr << "new id with name " << placeholder << " and size_method " << size_method->getDeclName().getAsString() << endl; 
-							auto id = isl_id_alloc(ctx,  placeholder.c_str(), cast<NamedDecl>(size_method) );
-							auto space = isl_space_alloc(ctx, 0, 0, 0);
-							space = isl_space_set_tuple_id(space, isl_dim_out, id);
-							auto pet_rhs = pet_expr_from_index(isl_multi_pw_aff_zero(space));
+                                                                          size_method = find_size_method( decl_of_container_type );
+                                                                          size_method->dump();
+                                                                  }
+                                                          }
+                                                          if ( !size_method ) return nullptr;
+
+                                                          cerr << "new id with name " << placeholder << " and size_method " << size_method->getDeclName().getAsString() << endl; 
+                                                          auto id = isl_id_alloc(ctx,  placeholder.c_str(), cast<NamedDecl>(size_method) );
+                                                          auto space = isl_space_alloc(ctx, 0, 0, 0);
+                                                          space = isl_space_set_tuple_id(space, isl_dim_out, id);
+                                                          auto pet_rhs = pet_expr_from_index(isl_multi_pw_aff_zero(space));
 
 #if 0
-							// TODO get type size from <container>.size()
-							auto type_size = 64;
-							auto depth = 1;
+                                                          // TODO get type size from <container>.size()
+                                                          auto type_size = 64;
+                                                          auto depth = 1;
 
-							pet_expr_set_type_size( pet_rhs , type_size );
-							pet_expr_access_set_depth( pet_rhs, depth );
+                                                          pet_expr_set_type_size( pet_rhs , type_size );
+                                                          pet_expr_access_set_depth( pet_rhs, depth );
 #endif
-							// TODO analyze the return type the the size_method
-							auto return_type = size_method->getReturnType();
-							pet_rhs = extract_access_expr( return_type, pet_rhs );
-							// TODO fill with call to <container>.size()
+                                                          // TODO analyze the return type the the size_method
+                                                          auto return_type = size_method->getReturnType();
+                                                          pet_rhs = extract_access_expr( return_type, pet_rhs );
+                                                          // TODO fill with call to <container>.size()
 #if 0
-							unsigned int length = 1000;
-							auto isl_int = isl_val_int_from_ui( ctx, length );
-							auto pet_rhs = pet_expr_new_int( isl_int );
+                                                          unsigned int length = 1000;
+                                                          auto isl_int = isl_val_int_from_ui( ctx, length );
+                                                          auto pet_rhs = pet_expr_new_int( isl_int );
 #endif
 
-							// TODO build a binary expression that compares declref to the iterator
-							//      with container.size() if the loop begins with begin, ends with end and iterates with ++
-							cerr << "unequal_comp " << 1 << " " << op << endl;
-							return pet_expr_new_binary(1, op, pet_lhs, pet_rhs);
-						}
-					}
+                                                          // TODO build a binary expression that compares declref to the iterator
+                                                          //      with container.size() if the loop begins with begin, ends with end and iterates with ++
+                                                          auto op = pet_op_lt;
+                                                          return pet_expr_new_binary(1, op, pet_lhs, pet_rhs);
+                                                  }
+                                          }
 
-					// TODO handle std::end ....
+                                          // TODO handle std::end ....
 
-				}
-			}
-		}
-	}
+                                  }
+                          }
+                  }
+          }
+    }
 	
 }
 
@@ -2317,14 +2344,38 @@ __isl_give pet_expr *PetScan::extract_cxx_binary_operator(CXXOperatorCallExpr *e
 	return pet_expr_new_binary(type_size, op, lhs, rhs);
 }
 
-static bool isStdContainerIteratorCreator( std::string name ) {
-	return name == "begin" || name == "end";
+bool PetScan::isStdContainerIteratorCreator( std::string name ) {
+	return name == "begin" || name == "cbegin";
+}
+
+VarDecl* PetScan::extract_container_from_instance( Expr* instance, CXXMemberCallExpr* member_call ) {
+  if ( auto decl_ref_expr = dyn_cast_or_null<DeclRefExpr>( instance ) ) {
+    auto type = decl_ref_expr->getType().getTypePtr();
+
+    auto fd = member_call->getDirectCallee();
+    auto name = fd->getDeclName().getAsString();
+    cerr << "function called is " << name << endl;
+
+    // TODO if the function is one of the iterator functions and the instance 
+    // called is a random access container return the containers decl
+    if ( isRandomAccessStlType( type ) && isStdContainerIteratorCreator( name ) ){
+      if ( auto var_decl = dyn_cast_or_null<VarDecl>( decl_ref_expr->getDecl() ) ) {
+        return var_decl;
+      }
+    }	
+  }else{
+    cerr << "not a decl ref expr but:" << endl;
+    instance->dump();
+  }
+
+  return nullptr;
 }
 
 // if e is a member call expression
 // if e is a template function call expression 
 // TODO test this with std::begin( constant array ) 
-VarDecl* extract_container( Expr* e ) {
+VarDecl* 
+PetScan::extract_container( Expr* e ) {
 	// to catch containers referencd via container.begin();
 	if ( auto expression_with_cleanups = dyn_cast_or_null<ExprWithCleanups>( e ) ){
 		cerr	<< " ewc  " << endl;
@@ -2334,25 +2385,9 @@ VarDecl* extract_container( Expr* e ) {
 				cerr	<< " te  " << endl;
 				if ( auto member_call = dyn_cast_or_null<CXXMemberCallExpr>( temporary_expression->GetTemporaryExpr() ) ) {
 					cerr << "container begin is referenced by a CXXMemberCallExpr" << endl;
-
 					if ( auto instance = member_call->getImplicitObjectArgument() ) {
-						cerr << " implicit object argument " << endl;
-						if ( auto decl_ref_expr = dyn_cast_or_null<DeclRefExpr>( instance ) ) {
-							auto type = decl_ref_expr->getType().getTypePtr();
-
-							auto fd = member_call->getDirectCallee();
-							auto name = fd->getDeclName().getAsString();
-							cerr << "function called is " << name << endl;
-
-							// TODO if the function is one of the iterator functions and the instance 
-							// called is a random access container return the containers decl
-							if ( isRandomAccessStlType( type ) && isStdContainerIteratorCreator( name ) ){
-								cerr	<< "is container and call to begin end rbegin ... " << endl;
-								if ( auto var_decl = dyn_cast_or_null<VarDecl>( decl_ref_expr->getDecl() ) ) {
-									return var_decl;
-								}
-							}	
-						}
+					      cerr << " implicit object argument" << endl;
+					      return extract_container_from_instance( ignoreImplicitCast(instance), member_call );	
 					}
 				}else{
 					e->dump();
@@ -2361,6 +2396,7 @@ VarDecl* extract_container( Expr* e ) {
 		}
 	}
 
+        return nullptr;
 	// to catch containers referenced via std::begin( container ) 
 }
 
@@ -2370,7 +2406,8 @@ VarDecl* extract_container( Expr* e ) {
 // -> extract the referenced container from the initializer
 // -> get the decl for this container
 // -> build a declRefExpr for this container and return it
-static DeclRefExpr* build_base_expression_by_initializer( Expr* e ) {
+DeclRefExpr* 
+PetScan::build_base_expression_by_initializer( Expr* e ) {
 	if ( auto decl_ref_expr = dyn_cast_or_null<DeclRefExpr>( e ) ){
 		std::cerr << "is a decl ref expr" << std::endl;
 		if ( auto decl = decl_ref_expr->getDecl() ) {
@@ -2396,7 +2433,8 @@ static DeclRefExpr* build_base_expression_by_initializer( Expr* e ) {
 
 // if e is a declRefExpr 
 // -> get its declaration 
-static DeclRefExpr* build_index_expression_by_decl( Expr* e ) {
+DeclRefExpr* 
+PetScan::build_index_expression_by_decl( Expr* e ) {
 	if ( auto decl_ref_expr = dyn_cast_or_null<DeclRefExpr>( e ) ){
 		std::cerr << "is a decl ref expr" << std::endl;
 		return decl_ref_expr;
@@ -2651,7 +2689,8 @@ ValueDecl *PetScan::extract_induction_variable(BinaryOperator *init)
 	return decl;
 }
 
-static bool isIteratorType( const Type* type_ptr ) {
+bool 
+PetScan::isIteratorType( const clang::Type* type_ptr ) {
   //std::cerr << "getTypeClassName " << type_ptr->getTypeClassName() << std::endl;
   //std::cerr << "sugared typename " << qt.getAsString() << std::endl;
   
@@ -2678,14 +2717,16 @@ static bool isIteratorType( const Type* type_ptr ) {
                                           if ( auto typedef_type_decl = typedef_type->getDecl() ){
                                             auto qt = typedef_type_decl->getUnderlyingType();
                                             cout << "my name is " << typedef_type_decl->getNameAsString() << endl;
-                                            if ( typedef_type_decl->getNameAsString() == "iterator" )  {
+                                            auto name = typedef_type_decl->getNameAsString();
+                                            if ( name == "iterator" || name == "const_iterator" )  {
 						std::cerr << "pet: name of the typedef type hiding the iterator is iterator " << std::endl;
 						return true;
                                             }
                                           }
                                         }
 
-					if ( named_type_qt.getAsString() == "iterator" ) {
+                                        auto name = named_type_qt.getAsString();
+					if ( name == "iterator" || name == "const_iterator" ) {
 						std::cerr << "pet name of the elab types NamedType is iterator " << std::endl;
 						return true;
 					}else{
@@ -2708,7 +2749,8 @@ static bool isIteratorType( const Type* type_ptr ) {
 }
 
 // TODO remove the debug output
-static bool isIteratorType( QualType qt ){
+bool PetScan::
+isIteratorType( QualType qt ){
 
   // make it query the type we are iterating over
   // if it is a random access type its ok otherwise not
@@ -3005,7 +3047,7 @@ PetScan::iterator_init_transformation( Expr* rhs ) {
 										cerr << __LINE__ << endl;
 										auto md = cxx_member_call_expr->getDirectCallee();
 										auto name = md->getDeclName().getAsString();
-										if ( name == "begin" ) {
+										if ( name == "begin" || name == "cbegin" ) {
 											cerr << "name is begin creating a pet expr returning 0" << endl;
 											return pet_expr_new_int(isl_val_zero(ctx));
 										}
@@ -4381,17 +4423,10 @@ struct pet_array *PetScan::extract_array(isl_ctx *ctx,
 	return array;
 }
 
-static struct pet_scop *add_type(isl_ctx *ctx, struct pet_scop *scop,
-	RecordDecl *decl, ASTContext &ast_context, PetTypes &types,
-	std::set<TypeDecl *> &types_done);
-static struct pet_scop *add_type(isl_ctx *ctx, struct pet_scop *scop,
-	TypedefNameDecl *decl, ASTContext &ast_context, PetTypes &types,
-	std::set<TypeDecl *> &types_done);
-
 /* For each of the fields of "decl" that is itself a record type
  * or a typedef, add a corresponding pet_type to "scop".
  */
-static struct pet_scop *add_field_types(isl_ctx *ctx, struct pet_scop *scop,
+struct pet_scop *PetScan::add_field_types(isl_ctx *ctx, struct pet_scop *scop,
 	RecordDecl *decl, ASTContext &ast_context, PetTypes &types,
 	std::set<TypeDecl *> &types_done)
 {
@@ -4428,7 +4463,7 @@ static struct pet_scop *add_field_types(isl_ctx *ctx, struct pet_scop *scop,
  * that structure.  We therefore call ourselves recursively
  * through add_field_types on the types of all record subfields.
  */
-static struct pet_scop *add_type(isl_ctx *ctx, struct pet_scop *scop,
+struct pet_scop *PetScan::add_type(isl_ctx *ctx, struct pet_scop *scop,
 	RecordDecl *decl, ASTContext &ast_context, PetTypes &types,
 	std::set<TypeDecl *> &types_done)
 {
@@ -4469,7 +4504,7 @@ static struct pet_scop *add_type(isl_ctx *ctx, struct pet_scop *scop,
  * in the typedef.  We also make sure in this case that the types of
  * the fields in the structure are added first.
  */
-static struct pet_scop *add_type(isl_ctx *ctx, struct pet_scop *scop,
+struct pet_scop *PetScan::add_type(isl_ctx *ctx, struct pet_scop *scop,
 	TypedefNameDecl *decl, ASTContext &ast_context, PetTypes &types,
 	std::set<TypeDecl *> &types_done)
 {
@@ -4591,7 +4626,7 @@ error:
 /* Bound all parameters in scop->context to the possible values
  * of the corresponding C variable.
  */
-static struct pet_scop *add_parameter_bounds(struct pet_scop *scop)
+struct pet_scop *PetScan::add_parameter_bounds(struct pet_scop *scop)
 {
 	int n;
 
