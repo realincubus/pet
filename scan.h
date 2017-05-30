@@ -295,6 +295,11 @@ private:
 
         clang::VarDecl* extract_member_call( clang::Expr* e );
         clang::VarDecl* extract_container_from_instance( clang::Expr* instance, clang::CXXMemberCallExpr* member_call );
+        __isl_give pet_expr* build_access_by_subscript_from_iterator ( clang::Expr* iterator );
+        clang::VarDecl* extract_container_from_expr( clang::Expr* expr );
+        __isl_give pet_expr* build_iterator_less_then_comparison_from_expr( clang::Expr* expr, clang::Expr* lhs );
+
+        __isl_give pet_expr* build_initializing_expr_from_expr( clang::Expr* expr );
 
 	void report(clang::Stmt *stmt, unsigned id, std::string debug_information = "" );
 	void unsupported(clang::Stmt *stmt);

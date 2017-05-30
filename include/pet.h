@@ -94,6 +94,7 @@ enum pet_op_type {
 	pet_op_pre_inc,
 	pet_op_pre_dec,
 	pet_op_address_of,
+	pet_op_deref,
 	pet_op_assume,
 	pet_op_kill,
 	pet_op_and,
