@@ -30,7 +30,7 @@ EXTRA_DIST = \
 PET_INCLUDES = -I$(srcdir) -I$(srcdir)/include
 
 AM_CFLAGS = $(PET_INCLUDES) @ISL_CFLAGS@
-AM_CXXFLAGS = $(PET_INCLUDES) $(CLANG_CXXFLAGS) @ISL_CFLAGS@
+AM_CXXFLAGS = $(PET_INCLUDES) $(CLANG_CXXFLAGS) @ISL_CFLAGS@ -pthread
 AM_LDFLAGS = $(CLANG_LDFLAGS)
 
 libpet_la_SOURCES = \
@@ -83,7 +83,7 @@ libpet_la_LDFLAGS = -version-info @versioninfo@ $(AM_LDFLAGS)
 libpet_la_LIBADD =  -lclangParse -lclangSema -lclangFrontend -lclangDriver\
 	$(LIB_CLANG_EDIT) -lclangAnalysis \
 	-lclangAST -lclangLex -lclangBasic -lclangSerialization \
-	$(CLANG_LIBS) $(CLANG_LDFLAGS) $(LIB_ISL)
+	$(CLANG_LIBS) $(CLANG_LDFLAGS) $(LIB_ISL) -ldl -lz -lcursesw
 
 libpet_cxx_la_SOURCES = \
 	isl_type_information.cc \
