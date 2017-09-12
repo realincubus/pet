@@ -14,7 +14,7 @@ void foo()
 	int in1[N][M];
 	int in2[N];
 	int A[N][10];
-	#pragma value_bounds in2 "-1" "1"
+#pragma value_bounds in2 "-1" "1"
 	int C[N];
 	int m;
 
