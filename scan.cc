@@ -32,7 +32,7 @@
  * Leiden University.
  */ 
 
-#include "config.h"
+//#include "config.h"
 
 #include <string.h>
 #include <set>
@@ -232,7 +232,7 @@ static enum pet_op_type OverloadedOperatorKind2pet_op_type(OverloadedOperatorKin
 	}
 }
 
-#if defined(DECLREFEXPR_CREATE_REQUIRES_BOOL)
+#if 1
 static DeclRefExpr *create_DeclRefExpr(VarDecl *var)
 {
 	return DeclRefExpr::Create(var->getASTContext(), var->getQualifierLoc(),
@@ -280,7 +280,7 @@ static VarDecl *create_VarDecl(VarDecl* var, ASTContext* ctx)
 			);
 }
 
-#ifdef GETTYPEINFORETURNSTYPEINFO
+#if 1
 
 static int size_in_bytes(ASTContext &context, QualType type)
 {
@@ -3367,7 +3367,7 @@ static unsigned getExpansionOffset(SourceManager &SM, SourceLocation Loc)
 	return SM.getFileOffset(SM.getExpansionLoc(Loc));
 }
 
-#ifdef HAVE_FINDLOCATIONAFTERTOKEN
+#if 1
 
 /* Return a SourceLocation for the location after the first semicolon
  * after "loc".  If Lexer::findLocationAfterToken is available, we simply

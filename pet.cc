@@ -32,7 +32,7 @@
  * Leiden University.
  */ 
 
-#include "config.h"
+//#include "config.h"
 
 #include <stdlib.h>
 #include <map>
@@ -56,23 +56,24 @@
 #include <clang/Driver/Tool.h>
 #include <clang/Frontend/CompilerInstance.h>
 #include <clang/Frontend/CompilerInvocation.h>
-#ifdef HAVE_BASIC_DIAGNOSTICOPTIONS_H
+
+//#ifdef HAVE_BASIC_DIAGNOSTICOPTIONS_H
 #include <clang/Basic/DiagnosticOptions.h>
-#else
-#include <clang/Frontend/DiagnosticOptions.h>
-#endif
+//#else
+//#include <clang/Frontend/DiagnosticOptions.h>
+//#endif
 #include <clang/Frontend/TextDiagnosticPrinter.h>
-#ifdef HAVE_LEX_HEADERSEARCHOPTIONS_H
+//#ifdef HAVE_LEX_HEADERSEARCHOPTIONS_H
 #include <clang/Lex/HeaderSearchOptions.h>
-#else
-#include <clang/Frontend/HeaderSearchOptions.h>
-#endif
+//#else
+//#include <clang/Frontend/HeaderSearchOptions.h>
+//#endif
 #include <clang/Frontend/LangStandard.h>
-#ifdef HAVE_LEX_PREPROCESSOROPTIONS_H
+//#ifdef HAVE_LEX_PREPROCESSOROPTIONS_H
 #include <clang/Lex/PreprocessorOptions.h>
-#else
-#include <clang/Frontend/PreprocessorOptions.h>
-#endif
+//#else
+//#include <clang/Frontend/PreprocessorOptions.h>
+//#endif
 #include <clang/Frontend/FrontendOptions.h>
 #include <clang/Frontend/Utils.h>
 #include <clang/Lex/HeaderSearch.h>
@@ -355,7 +356,7 @@ struct PragmaPencilHandler : public PragmaHandler {
 	}
 };
 
-#ifdef HAVE_TRANSLATELINECOL
+#if 1
 
 /* Return a SourceLocation for line "line", column "col" of file "FID".
  */
@@ -682,13 +683,13 @@ struct PetASTConsumer : public ASTConsumer {
 		}
 	}
 
-	virtual HandleTopLevelDeclReturn HandleTopLevelDecl(DeclGroupRef dg) {
+	virtual bool HandleTopLevelDecl(DeclGroupRef dg) {
 		DeclGroupRef::iterator it;
 
 		out << "in HandleTopLevelDecl " << endl;
 
 		if (error)
-			return HandleTopLevelDeclContinue;
+			return true;
 
 		for (it = dg.begin(); it != dg.end(); ++it) {
 		        out << "in for loop" << endl;
@@ -722,10 +723,11 @@ struct PetASTConsumer : public ASTConsumer {
 		}
 
 		out << "returning from HandleTopLevelDecl" << endl;
-		return HandleTopLevelDeclContinue;
+		return true;
 	}
 };
 
+#define CLANG_PREFIX "/usr/"
 static const char *ResourceDir =
 	CLANG_PREFIX "/lib/clang/" CLANG_VERSION_STRING;
 
@@ -753,6 +755,7 @@ static bool is_implicit(const IdentifierInfo *ident, int pencil)
 	return false;
 }
 
+#define DiagnosticInfo Diagnostic
 /* Ignore implicit function declaration warnings on
  * "min", "max", "ceild" and "floord" as we detect and handle these
  * in PetScan.
@@ -762,7 +765,7 @@ static bool is_implicit(const IdentifierInfo *ident, int pencil)
 struct MyDiagnosticPrinter : public TextDiagnosticPrinter {
 	const DiagnosticOptions *DiagOpts;
 	int pencil;
-#ifdef HAVE_BASIC_DIAGNOSTICOPTIONS_H
+#if 1
 	MyDiagnosticPrinter(DiagnosticOptions *DO, int pencil) :
 		TextDiagnosticPrinter(llvm::errs(), DO), pencil(pencil) {}
 	virtual DiagnosticConsumer *clone(DiagnosticsEngine &Diags) const {
@@ -789,21 +792,21 @@ struct MyDiagnosticPrinter : public TextDiagnosticPrinter {
 	}
 };
 
-#ifdef USE_ARRAYREF
+#if 1
 
-#ifdef HAVE_CXXISPRODUCTION
+#if 0
 static Driver *construct_driver(const char *binary, DiagnosticsEngine &Diags)
 {
 	return new Driver(binary, llvm::sys::getDefaultTargetTriple(),
 			    "", false, false, Diags);
 }
-#elif defined(HAVE_ISPRODUCTION)
+#elif 0
 static Driver *construct_driver(const char *binary, DiagnosticsEngine &Diags)
 {
 	return new Driver(binary, llvm::sys::getDefaultTargetTriple(),
 			    "", false, Diags);
 }
-#elif defined(DRIVER_CTOR_TAKES_DEFAULTIMAGENAME)
+#elif 0
 static Driver *construct_driver(const char *binary, DiagnosticsEngine &Diags)
 {
 	return new Driver(binary, llvm::sys::getDefaultTargetTriple(),
@@ -866,7 +869,7 @@ static CompilerInvocation *construct_invocation(const char *filename,
 
 #endif
 
-#ifdef HAVE_BASIC_DIAGNOSTICOPTIONS_H
+#if 1
 
 static MyDiagnosticPrinter *construct_printer(CompilerInstance *Clang,
 	int pencil)
@@ -884,7 +887,7 @@ static MyDiagnosticPrinter *construct_printer(CompilerInstance *Clang,
 
 #endif
 
-#ifdef CREATETARGETINFO_TAKES_SHARED_PTR
+#if 1
 
 static TargetInfo *create_target_info(CompilerInstance *Clang,
 	DiagnosticsEngine &Diags)
@@ -932,7 +935,7 @@ static void create_diagnostics(CompilerInstance *Clang)
 
 #endif
 
-#ifdef CREATEPREPROCESSOR_TAKES_TUKIND
+#if 1
 
 static void create_preprocessor(CompilerInstance *Clang)
 {
@@ -948,7 +951,7 @@ static void create_preprocessor(CompilerInstance *Clang)
 
 #endif
 
-#ifdef ADDPATH_TAKES_4_ARGUMENTS
+#if 1
 
 void add_path(HeaderSearchOptions &HSO, string Path)
 {
@@ -964,7 +967,7 @@ void add_path(HeaderSearchOptions &HSO, string Path)
 
 #endif
 
-#ifdef HAVE_SETMAINFILEID
+#if 1
 
 static void create_main_file_id(SourceManager &SM, const FileEntry *file)
 {
@@ -984,7 +987,8 @@ static void create_main_file_id(SourceManager &SM, const FileEntry *file)
 static void set_invocation(CompilerInstance *Clang,
   CompilerInvocation *invocation)
 {
-  Clang->setInvocation(std::make_shared<CompilerInvocation>(*invocation));
+  //Clang->setInvocation(std::make_shared<CompilerInvocation>(*invocation));
+    Clang->setInvocation(invocation);
 }
 
 

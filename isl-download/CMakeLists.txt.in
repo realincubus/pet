@@ -1,0 +1,15 @@
+CMAKE_MINIMUM_REQUIRED (VERSION 3.0)
+
+include(ExternalProject)
+ExternalProject_Add( project_isl
+		GIT_REPOSITORY "git://repo.or.cz/isl.git"
+		GIT_SHALLOW 1
+		BUILD_ALWAYS 0
+		SOURCE_DIR ${CMAKE_BINARY_DIR}/isl-src
+		#BINARY_DIR ${CMAKE_BINARY_DIR}/isl-build
+		UPDATE_COMMAND ""
+		CONFIGURE_COMMAND ./autogen.sh COMMAND ./configure
+		INSTALL_COMMAND ""
+		TEST_COMMAND ""
+		BUILD_IN_SOURCE on
+		)
