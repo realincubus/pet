@@ -3249,14 +3249,16 @@ __isl_give pet_tree *PetScan::extract_for(ForStmt *stmt)
 	std::cerr << "done pe_init extraction" << std::endl;
 	treat_calls_like_access = false;
 
+        cerr << "---------- extracting condititon" << endl;
 	if (!stmt->getCond())
 		pe_cond = pet_expr_new_int(isl_val_one(ctx));
 	else{
 	  treat_calls_like_access = true;
 	  pe_cond = extract_expr(stmt->getCond());
-		cerr	<< "cond " << pe_cond << endl;
+          cerr	<< "cond " << pe_cond << endl;
 	  treat_calls_like_access = false;
 	}
+        cerr << "---------- done extracting condititon" << endl;
 	
 	std::cerr << "after cond extraction" << std::endl;
 	pe_inc = extract_increment(stmt, iv);

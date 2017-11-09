@@ -1605,10 +1605,16 @@ static struct pet_scop *scop_from_affine_for(__isl_keep pet_tree *tree,
 	is_unsigned = pet_expr_get_type_size(tree->u.l.iv) > 0;
 
 	fprintf(stderr, "pa is %d\n", pa);
-	pet_expr_dump( cond_expr );
+	//pet_expr_dump( cond_expr );
 
-	is_non_affine = isl_pw_aff_involves_nan(pa) ||
-			!is_nested_allowed(pa, tree->u.l.body);
+        int is_nested = is_nested_allowed(pa, tree->u.l.body);
+	fprintf(stderr, "is_nested %d\n", is_nested);
+
+        int involves_nan = isl_pw_aff_involves_nan(pa);
+	fprintf(stderr, "involves_nan %d\n", involves_nan);
+
+
+	is_non_affine = involves_nan || !is_nested;
 	if (is_non_affine)
 		pa = isl_pw_aff_free(pa);
 
