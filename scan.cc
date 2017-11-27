@@ -1136,7 +1136,12 @@ __isl_give pet_expr *PetScan::extract_index_expr(CXXConstructExpr *construct)
   
   auto n_args = construct->getNumArgs();
   std::cerr << "n args " << n_args << std::endl;
-  // TODO 
+  
+  if ( n_args == 0 ) {
+
+    // TODO mimic an access to all members which writes a value on them
+    return nullptr;
+  }
 
   if ( n_args != 1 ) {
     unsupported_with_extra_string( construct, " != 1 argument to a construct expr are not implemented" );
@@ -1517,15 +1522,20 @@ __isl_give pet_tree *PetScan::extract(Decl *decl)
 
       lhs = extract_access_expr(vd);
       lhs = mark_write(lhs);
-      if (!vd->getInit()){
-	      tree = pet_tree_new_decl(lhs);
-	      std::cerr << "no init new pet tree for decl " << tree << std::endl;
+      if (!vd->getInit() ){
+        tree = pet_tree_new_decl(lhs);
+        std::cerr << "no init new pet tree for decl " << tree << std::endl;
       }else {
-	      std::cerr << "staring to extract expr" << std::endl;
-	      rhs = extract_expr(vd->getInit());
-	      std::cerr << "done extracting expr" << std::endl;
-	      tree = pet_tree_new_decl_init(lhs, rhs);
-	      std::cerr << "init new pet tree for decl " << tree << std::endl;
+        if ( dyn_cast_or_null<CXXConstructExpr>(vd->getInit())){
+          std::cerr << "is a construct expr" << std::endl;
+          tree = pet_tree_new_decl(lhs);
+        }else{
+          std::cerr << "staring to extract expr" << std::endl;
+          rhs = extract_expr(vd->getInit());
+          std::cerr << "done extracting expr" << std::endl;
+          tree = pet_tree_new_decl_init(lhs, rhs);
+          std::cerr << "init new pet tree for decl " << tree << std::endl;
+        }
       }
       return tree;
     }
@@ -2614,6 +2624,13 @@ __isl_give pet_expr *PetScan::extract_expr( SubstNonTypeTemplateParmExpr *expr){
   return extract_expr( replacement );
 }
 
+__isl_give pet_expr *PetScan::extract_expr(CXXConstructExpr* expr){
+  auto ctor_decl = expr->getConstructor();
+  ctor_decl->dump();
+  exit(-1);
+  return nullptr;
+}
+
 /* Try and construct a pet_expr representing "expr".
  */
 __isl_give pet_expr *PetScan::extract_expr(Expr *expr )
@@ -2663,7 +2680,9 @@ __isl_give pet_expr *PetScan::extract_expr(Expr *expr )
 		if ( treat_calls_like_access ) {
 		  return extract_access_expr( expr );
 		}else{
-		  std::cerr << "not implemented" << std::endl;
+		  std::cerr << "never tested CXX construct expr in " << __PRETTY_FUNCTION__ << std::endl;
+		  return extract_expr( cast<CXXConstructExpr>(expr) );
+		  std::cerr << "not implemented CXX construct expr in " << __PRETTY_FUNCTION__ << std::endl;
 		  exit(-1);
 		  return nullptr;
 		}
