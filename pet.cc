@@ -662,8 +662,8 @@ struct PetASTConsumer : public ASTConsumer {
 		if (scops.list.size() == 0)
 			return;
 
-		start = SM.getFileOffset(fd->getLocStart());
-		end = SM.getFileOffset(fd->getLocEnd());
+		start = SM.getFileOffset(fd->getBeginLoc());
+		end = SM.getFileOffset(fd->getEndLoc());
 
 		for (it = scops.list.begin(); it != scops.list.end(); ++it) {
 			ScopLoc loc = *it;
@@ -847,7 +847,7 @@ static CompilerInvocation *construct_invocation(const char *filename,
 	if (strcmp(cmd->getCreator().getName(), "clang"))
 		return NULL;
 
-	const ArgStringList *args = &cmd->getArguments();
+	const llvm::opt::ArgStringList *args = &cmd->getArguments();
 
 	CompilerInvocation *invocation = new CompilerInvocation;
 	CompilerInvocation::CreateFromArgs(*invocation, args->data() + 1,

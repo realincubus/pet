@@ -264,8 +264,11 @@ static VarDecl *create_VarDecl(VarDecl* var, ASTContext* ctx)
 	// QualType T, 
 	// TypeSourceInfo *TInfo, 
 	// StorageClass S
-	BuiltinType* bit = new BuiltinType( BuiltinType::Int );
-	QualType q( bit, 0 );
+	clang::ASTContext::GetBuiltinTypeError e;
+	QualType q = ctx->GetBuiltinType( clang::BuiltinType::Int, e );
+
+	//BuiltinType* bit = new BuiltinType( clang::BuiltinType::Int );
+	//QualType q( bit, 0 );
 	auto tsi = ctx->CreateTypeSourceInfo( q );
 	
 	return VarDecl::Create(
@@ -404,7 +407,7 @@ void PetScan::report(Stmt *stmt, unsigned id, std::string debug_information )
 		return;
 
 	std::cerr << "in " << __PRETTY_FUNCTION__ << std::endl;
-	SourceLocation loc = stmt->getLocStart();
+	SourceLocation loc = stmt->getBeginLoc();
 	std::cerr << "got loc " << __PRETTY_FUNCTION__ << std::endl;
 	DiagnosticsEngine &diag = getDiagnostics();
 	std::cerr << "got diag engine " << __PRETTY_FUNCTION__ << std::endl;
@@ -4093,8 +4096,8 @@ struct pet_scop *PetScan::scan(Stmt *stmt)
 	SourceManager &SM = ast_context.getSourceManager();
 	unsigned start_off, end_off;
 
-	start_off = getExpansionOffset(SM, stmt->getLocStart());
-	end_off = getExpansionOffset(SM, stmt->getLocEnd());
+	start_off = getExpansionOffset(SM, stmt->getBeginLoc());
+	end_off = getExpansionOffset(SM, stmt->getEndLoc());
 
 	if (start_off > loc.end)
 		return NULL;
@@ -4109,8 +4112,8 @@ struct pet_scop *PetScan::scan(Stmt *stmt)
 		Stmt *child = *start;
 		if (!child)
 			continue;
-		start_off = getExpansionOffset(SM, child->getLocStart());
-		end_off = getExpansionOffset(SM, child->getLocEnd());
+		start_off = getExpansionOffset(SM, child->getBeginLoc());
+		end_off = getExpansionOffset(SM, child->getEndLoc());
 		if (start_off < loc.start && end_off >= loc.end)
 			return scan(child);
 		if (start_off >= loc.start)
@@ -4120,7 +4123,7 @@ struct pet_scop *PetScan::scan(Stmt *stmt)
 	StmtIterator end;
 	for (end = start; end != stmt->child_end(); ++end) {
 		Stmt *child = *end;
-		start_off = SM.getFileOffset(child->getLocStart());
+		start_off = SM.getFileOffset(child->getBeginLoc());
 		if (start_off >= loc.end)
 			break;
 	}
@@ -4808,7 +4811,7 @@ struct pet_scop *PetScan::scan(FunctionDecl *fd)
  */
 void PetScan::set_current_stmt(Stmt *stmt)
 {
-	SourceLocation loc = stmt->getLocStart();
+	SourceLocation loc = stmt->getBeginLoc();
 	SourceManager &SM = ast_context.getSourceManager();
 
 	last_line = current_line;

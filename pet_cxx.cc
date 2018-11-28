@@ -670,8 +670,8 @@ struct PetASTConsumer : public ASTConsumer {
 		if (scops.list.size() == 0)
 			return;
 
-		cout << "start function decl " << fd->getLocStart().printToString(SM) << endl;
-		cout << "end   function decl " << fd->getLocEnd().printToString(SM) << endl;
+		cout << "start function decl " << fd->getBeginLoc().printToString(SM) << endl;
+		cout << "end   function decl " << fd->getEndLoc().printToString(SM) << endl;
 
 
 		// this starting location is relative to the file it was written in
@@ -679,8 +679,8 @@ struct PetASTConsumer : public ASTConsumer {
 		// work like expected
 		// TODO check whether we are in the same file
 
-		auto loc_start = fd->getLocStart();
-		auto loc_end = fd->getLocEnd();
+		auto loc_start = fd->getBeginLoc();
+		auto loc_end = fd->getEndLoc();
 
 		auto expansion_loc_start = SM.getExpansionLoc(loc_start);
 		auto expansion_loc_end = SM.getExpansionLoc(loc_end);
@@ -848,7 +848,7 @@ void Pet::pet_scop_extract_from_clang_ast(
 
   // for the start of the statement
   {
-    SourceLocation sloc = stmt->getLocStart();
+    SourceLocation sloc = stmt->getBeginLoc();
     int line = SM.getExpansionLineNumber(sloc);
     sloc = translateLineCol(SM, SM.getFileID(sloc), line, 1);
 		cout << "from " << sloc.printToString(SM) << endl;
@@ -856,7 +856,7 @@ void Pet::pet_scop_extract_from_clang_ast(
   }
   // for the end of the statement
   {
-    SourceLocation sloc = stmt->getLocEnd();
+    SourceLocation sloc = stmt->getEndLoc();
     int line = SM.getExpansionLineNumber(sloc);
     sloc = translateLineCol(SM, SM.getFileID(sloc), line + 1, 1);
 		cout << "to " << sloc.printToString(SM) << endl;
@@ -873,7 +873,7 @@ void Pet::pet_scop_extract_from_clang_ast(
   // braces are needed for the build object to be destroyed
   {
     auto& element = stmt;
-    auto loc = element->getLocStart();
+    auto loc = element->getBeginLoc();
     DiagnosticsEngine &diag = clang_ctx->getDiagnostics();
     unsigned id = diag.getCustomDiagID(DiagnosticsEngine::Warning,
 				       "test diagnostic");
